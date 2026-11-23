@@ -8,3 +8,7 @@ error-*.png
 !.env.example
 .playwright/
 tmp/
+cookies.txt
+cookies2.txt
+shot.jpg
+*.jpg

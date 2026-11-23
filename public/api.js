@@ -1,5 +1,7 @@
 async function api(path, options = {}) {
   const opts = { credentials: "same-origin", ...options };
+  const timeoutMs = opts.timeoutMs ?? 120000;
+  delete opts.timeoutMs;
   if (opts.body && typeof opts.body === "object" && !(opts.body instanceof FormData)) {
     opts.headers = {
       "Content-Type": "application/json",
@@ -7,15 +9,27 @@ async function api(path, options = {}) {
     };
     opts.body = JSON.stringify(opts.body);
   }
-  const res = await fetch(path, opts);
-  const ct = res.headers.get("content-type") || "";
-  if (ct.includes("application/json")) {
-    return res.json();
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+  opts.signal = ctrl.signal;
+  try {
+    const res = await fetch(path, opts);
+    const ct = res.headers.get("content-type") || "";
+    if (ct.includes("application/json")) {
+      return res.json();
+    }
+    if (!res.ok) {
+      throw new Error(`HTTP ${res.status}`);
+    }
+    return res;
+  } catch (err) {
+    if (err && err.name === "AbortError") {
+      return { ok: false, error: "Request timed out. Try again." };
+    }
+    throw err;
+  } finally {
+    clearTimeout(timer);
   }
-  if (!res.ok) {
-    throw new Error(`HTTP ${res.status}`);
-  }
-  return res;
 }
 
 window.api = {

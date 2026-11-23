@@ -7,7 +7,7 @@
     "start": "electron .",
     "start:bg": "electron . --background",
     "start:web": "node server/index.js",
-    "build": "npx playwright install chromium",
+    "build": "node scripts/install-browsers.js",
     "test": "node --test test/*.test.js"
   },
   "keywords": [

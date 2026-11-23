@@ -495,11 +495,19 @@ els.btnClearLog.addEventListener("click", async () => {
 
 els.btnConnect.addEventListener("click", async () => {
   els.btnConnect.disabled = true;
-  setStatus(els.connStatus, "Starting remote login…", "muted");
-  const result = await window.api.connectAccount();
-  if (!result.ok) {
+  setStatus(els.connStatus, "Starting remote login… (may take ~30s)", "muted");
+  let result;
+  try {
+    result = await window.api.connectAccount();
+  } catch (err) {
     els.btnConnect.disabled = false;
-    setStatus(els.connStatus, result.error || "Connect failed", "bad");
+    setStatus(els.connStatus, String(err.message || err), "bad");
+    return;
+  }
+  if (!result || !result.ok) {
+    els.btnConnect.disabled = false;
+    const msg = (result && result.error) || "Connect failed";
+    setStatus(els.connStatus, msg.split("\n")[0], "bad");
     return;
   }
   setStatus(els.connStatus, "Sign in via the remote view below", "muted");

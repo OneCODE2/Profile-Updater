@@ -27,6 +27,10 @@ function onProfile(url) {
 }
 
 async function launchContext(storageState) {
+  // Must match build: browsers live under node_modules when PATH=0
+  if (!process.env.PLAYWRIGHT_BROWSERS_PATH) {
+    process.env.PLAYWRIGHT_BROWSERS_PATH = "0";
+  }
   const browser = await chromium.launch({
     headless: true,
     args: LAUNCH_ARGS,

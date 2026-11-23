@@ -79,6 +79,11 @@ window.api = {
   connectStatus: () => apiRequest("/api/connect/status"),
   connectInput: (action) =>
     apiRequest("/api/connect/input", { method: "POST", body: action }),
+  importCookies: (json) =>
+    apiRequest("/api/connect/import", {
+      method: "POST",
+      body: { json },
+    }),
   runNow: () => apiRequest("/api/run", { method: "POST", body: {} }),
   onStatus: () => {},
 };

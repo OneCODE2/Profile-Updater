@@ -23,20 +23,40 @@
       <section class="card">
         <h2>Account</h2>
         <p id="connStatus" class="status muted">Not connected</p>
-        <button type="button" id="btnConnect">Connect Naukri account</button>
-        <button type="button" id="btnCancelConnect" class="secondary hidden">Cancel connect</button>
         <p id="connHint" class="hint">
-          Opens a remote Naukri login view below. Sign in there; the session is
-          saved for this browser (open URL — no app signup).
+          Recommended (free): sign into Naukri in your own Chrome, export cookies,
+          paste JSON below. Remote Connect often gets blocked by Naukri on cloud IPs.
         </p>
-        <div id="connectPanel" class="connect-panel hidden">
-          <p class="hint">
-            Click inside the image to interact. Type with your keyboard when the
-            login fields are focused. Scroll with the mouse wheel.
-          </p>
-          <img id="connectShot" class="connect-shot" alt="Naukri login session" />
-          <p id="connectUrl" class="hint muted"></p>
-        </div>
+        <label>
+          Paste Cookie-Editor JSON (or Playwright storageState)
+          <textarea
+            id="cookiesPaste"
+            rows="6"
+            placeholder='[{"name":"...","value":"...","domain":".naukri.com",...}]'
+          ></textarea>
+        </label>
+        <button type="button" id="btnImportCookies" class="primary">
+          Save pasted cookies
+        </button>
+        <p class="hint">
+          1) Open naukri.com and sign in · 2) Cookie-Editor → Export → JSON ·
+          3) Paste here → Save · Then upload resume and Run now.
+        </p>
+        <details class="advanced">
+          <summary>Advanced: remote Connect (often Access Denied)</summary>
+          <button type="button" id="btnConnect">Connect Naukri account</button>
+          <button type="button" id="btnCancelConnect" class="secondary hidden">
+            Cancel connect
+          </button>
+          <div id="connectPanel" class="connect-panel hidden">
+            <p class="hint">
+              Click inside the image to interact. Type with your keyboard when the
+              login fields are focused. Scroll with the mouse wheel.
+            </p>
+            <img id="connectShot" class="connect-shot" alt="Naukri login session" />
+            <p id="connectUrl" class="hint muted"></p>
+          </div>
+        </details>
       </section>
 
       <section class="card">

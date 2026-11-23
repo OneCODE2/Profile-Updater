@@ -316,3 +316,27 @@ code {
   background: #000;
   user-select: none;
 }
+
+#cookiesPaste {
+  width: 100%;
+  min-height: 120px;
+  margin: 8px 0 12px;
+  padding: 10px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--input);
+  color: var(--ink);
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 0.8rem;
+  resize: vertical;
+}
+
+details.advanced {
+  margin-top: 16px;
+  color: var(--muted);
+}
+
+details.advanced summary {
+  cursor: pointer;
+  margin-bottom: 10px;
+}

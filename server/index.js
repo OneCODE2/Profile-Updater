@@ -11,6 +11,7 @@ const {
   patchSettings,
   clearLog,
   uploadResume,
+  saveStorageState,
 } = require("./visitors");
 const {
   getState,
@@ -26,6 +27,7 @@ const {
   sendInput,
   hasSession,
 } = require("./connect");
+const { parseSessionImport } = require("./cookies-import");
 
 const app = express();
 const upload = multer({
@@ -120,6 +122,28 @@ app.post("/api/clear-log", async (req, res) => {
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ ok: false, error: String(err.message || err) });
+  }
+});
+
+app.post("/api/connect/import", async (req, res) => {
+  try {
+    const text =
+      typeof req.body?.json === "string"
+        ? req.body.json
+        : typeof req.body?.cookies === "string"
+          ? req.body.cookies
+          : JSON.stringify(req.body?.json ?? req.body?.cookies ?? req.body);
+    const storageState = parseSessionImport(text);
+    await saveStorageState(req.sid, storageState);
+    await stopSession(req.sid).catch(() => {});
+    res.json({
+      ok: true,
+      connected: true,
+      cookieCount: storageState.cookies.length,
+      connectedAt: new Date().toISOString(),
+    });
+  } catch (err) {
+    res.status(400).json({ ok: false, error: String(err.message || err) });
   }
 });
 

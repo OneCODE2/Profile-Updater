@@ -10,6 +10,8 @@ const els = {
   connHint: $("connHint"),
   btnConnect: $("btnConnect"),
   btnCancelConnect: $("btnCancelConnect"),
+  btnImportCookies: $("btnImportCookies"),
+  cookiesPaste: $("cookiesPaste"),
   connectPanel: $("connectPanel"),
   connectShot: $("connectShot"),
   connectUrl: $("connectUrl"),
@@ -61,14 +63,14 @@ function syncConnectUi(connected, connectedAt) {
     els.btnConnect.textContent = "Reconnect";
     if (els.connHint) {
       els.connHint.textContent =
-        "Already connected. Click Reconnect to refresh login or use another Naukri account.";
+        "Connected. Paste fresh cookies anytime to refresh the session.";
     }
   } else {
     setStatus(els.connStatus, "Not connected", "muted");
-    els.btnConnect.textContent = "Connect Naukri account";
+    if (els.btnConnect) els.btnConnect.textContent = "Connect Naukri account";
     if (els.connHint) {
       els.connHint.textContent =
-        "Opens a remote Naukri login view below. Sign in there; the session is saved for this browser.";
+        "Recommended: sign into Naukri in Chrome, export cookies with Cookie-Editor, paste JSON below.";
     }
   }
 }
@@ -493,26 +495,58 @@ els.btnClearLog.addEventListener("click", async () => {
   }
 });
 
-els.btnConnect.addEventListener("click", async () => {
-  els.btnConnect.disabled = true;
-  setStatus(els.connStatus, "Starting remote login… (may take ~30s)", "muted");
-  let result;
+els.btnImportCookies.addEventListener("click", async () => {
+  const json = (els.cookiesPaste.value || "").trim();
+  if (!json) {
+    setStatus(els.connStatus, "Paste Cookie-Editor JSON first.", "bad");
+    return;
+  }
+  els.btnImportCookies.disabled = true;
+  setStatus(els.connStatus, "Saving cookies…", "muted");
   try {
-    result = await window.api.connectAccount();
+    const result = await window.api.importCookies(json);
+    if (!result.ok) {
+      setStatus(els.connStatus, result.error || "Import failed", "bad");
+      return;
+    }
+    els.cookiesPaste.value = "";
+    syncConnectUi(true, result.connectedAt);
+    setStatus(
+      els.lastResult,
+      `Session saved (${result.cookieCount} Naukri cookies).`,
+      "ok",
+    );
+    const state = await window.api.getState();
+    applyState(state);
   } catch (err) {
-    els.btnConnect.disabled = false;
     setStatus(els.connStatus, String(err.message || err), "bad");
-    return;
+  } finally {
+    els.btnImportCookies.disabled = false;
   }
-  if (!result || !result.ok) {
-    els.btnConnect.disabled = false;
-    const msg = (result && result.error) || "Connect failed";
-    setStatus(els.connStatus, msg.split("\n")[0], "bad");
-    return;
-  }
-  setStatus(els.connStatus, "Sign in via the remote view below", "muted");
-  startConnectUi();
 });
+
+if (els.btnConnect) {
+  els.btnConnect.addEventListener("click", async () => {
+    els.btnConnect.disabled = true;
+    setStatus(els.connStatus, "Starting remote login… (may take ~30s)", "muted");
+    let result;
+    try {
+      result = await window.api.connectAccount();
+    } catch (err) {
+      els.btnConnect.disabled = false;
+      setStatus(els.connStatus, String(err.message || err), "bad");
+      return;
+    }
+    if (!result || !result.ok) {
+      els.btnConnect.disabled = false;
+      const msg = (result && result.error) || "Connect failed";
+      setStatus(els.connStatus, msg.split("\n")[0], "bad");
+      return;
+    }
+    setStatus(els.connStatus, "Sign in via the remote view below", "muted");
+    startConnectUi();
+  });
+}
 
 els.btnCancelConnect.addEventListener("click", async () => {
   await window.api.cancelConnect();

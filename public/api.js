@@ -1,4 +1,4 @@
-async function api(path, options = {}) {
+async function apiRequest(path, options = {}) {
   const opts = { credentials: "same-origin", ...options };
   const timeoutMs = opts.timeoutMs ?? 120000;
   delete opts.timeoutMs;
@@ -33,11 +33,11 @@ async function api(path, options = {}) {
 }
 
 window.api = {
-  getState: () => api("/api/state"),
+  getState: () => apiRequest("/api/state"),
   saveSettings: (partial) =>
-    api("/api/settings", { method: "PATCH", body: partial }),
+    apiRequest("/api/settings", { method: "PATCH", body: partial }),
   previewResumeName: async (partial) => {
-    const r = await api("/api/preview-resume-name", {
+    const r = await apiRequest("/api/preview-resume-name", {
       method: "POST",
       body: partial,
     });
@@ -71,12 +71,14 @@ window.api = {
       input.click();
     });
   },
-  clearLog: () => api("/api/clear-log", { method: "POST", body: {} }),
-  connectAccount: () => api("/api/connect/start", { method: "POST", body: {} }),
-  cancelConnect: () => api("/api/connect/cancel", { method: "POST", body: {} }),
-  connectStatus: () => api("/api/connect/status"),
+  clearLog: () => apiRequest("/api/clear-log", { method: "POST", body: {} }),
+  connectAccount: () =>
+    apiRequest("/api/connect/start", { method: "POST", body: {} }),
+  cancelConnect: () =>
+    apiRequest("/api/connect/cancel", { method: "POST", body: {} }),
+  connectStatus: () => apiRequest("/api/connect/status"),
   connectInput: (action) =>
-    api("/api/connect/input", { method: "POST", body: action }),
-  runNow: () => api("/api/run", { method: "POST", body: {} }),
+    apiRequest("/api/connect/input", { method: "POST", body: action }),
+  runNow: () => apiRequest("/api/run", { method: "POST", body: {} }),
   onStatus: () => {},
 };

@@ -7,6 +7,7 @@
     "start": "electron .",
     "start:bg": "electron . --background",
     "start:web": "node server/index.js",
+    "build": "npx playwright install chromium",
     "test": "node --test test/*.test.js"
   },
   "keywords": [
@@ -18,7 +19,7 @@
   ],
   "license": "ISC",
   "engines": {
-    "node": ">=20"
+    "node": "20.x"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.119.2",

@@ -36,10 +36,11 @@ npm run start:bg
 ## Web deploy (Render free)
 
 1. Use repo `render.yaml` or set the existing **Profile-Updater** service:
-   - **Build:** `npm install && npx playwright install chromium`
+   - **Build:** `npm install && npm run build`
    - **Start:** `npm run start:web` (not `electron`)
 2. Env vars: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `CRON_SECRET`, `NODE_ENV=production`
-3. Cron every 5 minutes: `POST https://<your-service>.onrender.com/internal/tick` with header `x-cron-secret: <CRON_SECRET>`
+3. Free Render cron jobs are paid-only — use a free external cron (e.g. cron-job.org) every 5 minutes:  
+   `POST https://<your-service>.onrender.com/internal/tick` with header `x-cron-secret: <CRON_SECRET>`
 
 Supabase project: **Profile-Updater** (`stpbrwrfblijjycuvmkn`).
 

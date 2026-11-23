@@ -26,6 +26,20 @@ function onProfile(url) {
   }
 }
 
+async function assertNotBlocked(page) {
+  const title = await page.title().catch(() => "");
+  const body = await page
+    .locator("body")
+    .innerText({ timeout: 5000 })
+    .catch(() => "");
+  if (/access denied/i.test(title) || /access denied/i.test(body)) {
+    throw new Error(
+      "Naukri/Akamai blocked this cloud server IP (Access Denied). " +
+        "Cookies alone cannot fix that. Use the desktop app on your PC: npm start",
+    );
+  }
+}
+
 async function launchContext(storageState) {
   // Must match build: browsers live under node_modules when PATH=0
   if (!process.env.PLAYWRIGHT_BROWSERS_PATH) {
@@ -284,10 +298,11 @@ async function runProfileUpdate({
       waitUntil: "domcontentloaded",
       timeout: 60000,
     });
+    await assertNotBlocked(page);
 
     if (!onProfile(page.url())) {
       throw new Error(
-        "Not logged in — click Connect account and sign into Naukri, then try again.",
+        "Not logged in — paste fresh Cookie-Editor JSON (Save pasted cookies), then try again.",
       );
     }
     if (!/\/mnjuser\/profile/.test(page.url())) {

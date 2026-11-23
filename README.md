@@ -8,6 +8,11 @@ Two ways to run:
 2. **Web (Render + Supabase)** — share a URL with friends; each browser gets its own session
 
 > Open web URL has **no app login**. Anyone with the link can use it. Trusted friends only. Automating Naukri may conflict with their terms of use.
+>
+> **Important:** Naukri uses Akamai Bot Manager. Render’s cloud IPs often get
+> **Access Denied** even with valid cookies. For reliable free runs, use the
+> **desktop Electron app** (`npm start`) on your PC. Web cookie paste helps store
+> a session, but cloud automation is frequently blocked.
 
 ## Setup
 

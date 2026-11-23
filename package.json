@@ -1,0 +1,19 @@
+{
+  "name": "naukari-profile-updater",
+  "version": "1.0.0",
+  "description": "Electron mini-app that keeps a Naukri profile fresh via headline/summary dot-cycle and resume re-upload",
+  "main": "electron/main.js",
+  "scripts": {
+    "start": "electron .",
+    "start:bg": "electron . --background",
+    "test": "node --test test/*.test.js"
+  },
+  "keywords": ["naukri", "electron", "playwright"],
+  "license": "ISC",
+  "dependencies": {
+    "playwright-core": "^1.61.1"
+  },
+  "devDependencies": {
+    "electron": "^33.2.0"
+  }
+}

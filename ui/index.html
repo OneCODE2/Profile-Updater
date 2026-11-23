@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'"
+    />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Naukari Profile Updater</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main>
+      <header>
+        <h1>Naukari Profile Updater</h1>
+        <p class="sub">
+          Dot-cycle headline &amp; summary, rename resume, upload on your schedule.
+        </p>
+        <p id="runnerRevision" class="hint">Runner: …</p>
+      </header>
+
+      <section class="card">
+        <h2>Account</h2>
+        <p id="connStatus" class="status muted">Not connected</p>
+        <button type="button" id="btnConnect">Connect Naukri account</button>
+        <p id="connHint" class="hint">
+          Opens Chrome. Sign into Naukri once; the session stays on this PC.
+        </p>
+      </section>
+
+      <section class="card">
+        <h2>Profile text update</h2>
+        <p class="hint">
+          Edits happen in two Naukri fields only:
+          <strong>Resume headline</strong> and <strong>Profile summary</strong>.
+          Nothing else on the profile is rewritten by this step.
+        </p>
+        <label class="row">
+          <input type="radio" name="bumpMode" id="bumpModeDot" value="dot" checked />
+          Add trailing dots (same behavior on headline + summary: . → .. → clear)
+        </label>
+        <label class="row">
+          <input type="radio" name="bumpMode" id="bumpModeCustom" value="custom" />
+          Append custom text at the end (separate box per field)
+        </label>
+        <div id="customBumpWrap" class="hidden custom-fields">
+          <p class="hint">
+            Trailing dots on the current text are removed first, then your text is
+            appended (not a full replace). Naukri needs enough words — a lone “SDE”
+            replace is rejected.
+          </p>
+          <label>
+            Append to Resume headline
+            <input
+              id="customHeadlineText"
+              type="text"
+              placeholder="e.g. SDE — appended after current headline"
+            />
+          </label>
+          <label>
+            Append to Profile summary
+            <input
+              id="customSummaryText"
+              type="text"
+              placeholder="e.g. SDE — appended after current summary"
+            />
+          </label>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>Resume file</h2>
+        <p id="resumePath" class="path muted">No PDF selected</p>
+        <button type="button" id="btnPickResume">Replace / choose resume</button>
+        <p class="hint">
+          Pick the PDF first. Each run copies it under a fresh standard name, then
+          uploads that copy.
+        </p>
+      </section>
+
+      <section class="card">
+        <h2>Resume naming</h2>
+        <p class="hint">
+          We always rename before upload to
+          <code>FirstName_LastName_Role_Resume_YYYY-MM-DD.pdf</code>
+          so Naukri sees a new file each day. The date is taken from your PC clock
+          at run time (today vs tomorrow updates automatically).
+        </p>
+        <label>
+          First name
+          <input id="firstName" type="text" autocomplete="given-name" placeholder="Optional" />
+        </label>
+        <label>
+          Last name
+          <input id="lastName" type="text" autocomplete="family-name" placeholder="Optional" />
+        </label>
+        <label>
+          Role
+          <input id="role" type="text" placeholder="Optional — e.g. Software_Engineer" />
+        </label>
+        <p class="hint">
+          Leave blank to use the selected PDF file name. Blank pieces are filled
+          automatically (missing bits become <code>X</code>).
+        </p>
+        <p id="identitySource" class="hint">Using: —</p>
+        <p class="preview">
+          Filename preview: <code id="resumePreview">—</code>
+        </p>
+      </section>
+
+      <section class="card">
+        <h2>Schedule (max 4 times / day)</h2>
+        <label class="row">
+          <input id="scheduleEnabled" type="checkbox" />
+          Enable daily schedule
+        </label>
+        <div id="slots" class="slots"></div>
+        <div class="slot-actions">
+          <button type="button" id="btnAddSlot" class="secondary">Add time for automation</button>
+          <button type="button" id="btnEvery4h" class="secondary">
+            Every 4 hours from first time
+          </button>
+        </div>
+        <p class="hint">
+          Type the hour and minute, or use + / −. Minutes must be 0–59.
+          “Every 4 hours” fills up to 4 slots from the first time (e.g. 09:00 → 09:00, 13:00, 17:00, 21:00).
+          Closing the window keeps the app in the system tray so schedules still fire.
+        </p>
+        <p id="nextRun" class="status muted">Next run: —</p>
+      </section>
+
+      <section class="actions">
+        <label class="row">
+          <input id="showBrowserDuringRun" type="checkbox" checked />
+          Show Chrome while running (watch headline &amp; summary update)
+        </label>
+        <p id="autoSaveStatus" class="hint">Settings auto-save while you edit.</p>
+        <button type="button" id="btnRun" class="primary">Run now</button>
+      </section>
+
+      <section class="card">
+        <h2>Status</h2>
+        <div class="status-bar">
+          <p id="lastResult" class="status muted">No runs yet</p>
+          <button type="button" id="btnClearLog" class="secondary">Clear status log</button>
+        </div>
+        <pre id="log" class="log"></pre>
+      </section>
+    </main>
+    <script src="renderer.js"></script>
+  </body>
+</html>

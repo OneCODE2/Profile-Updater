@@ -1,6 +1,13 @@
 # Naukari Profile Updater
 
-Electron mini-app that keeps a Naukri profile fresh: cycles a trailing dot on the headline/summary, renames a resume copy, and re-uploads it on a schedule.
+Keeps a Naukri profile fresh: cycles a trailing dot on the headline/summary, renames a resume copy, and re-uploads it on a schedule.
+
+Two ways to run:
+
+1. **Desktop (Electron)** — local Chrome session on your PC  
+2. **Web (Render + Supabase)** — share a URL with friends; each browser gets its own session
+
+> Open web URL has **no app login**. Anyone with the link can use it. Trusted friends only. Automating Naukri may conflict with their terms of use.
 
 ## Setup
 
@@ -8,17 +15,33 @@ Electron mini-app that keeps a Naukri profile fresh: cycles a trailing dot on th
 npm install
 ```
 
-## Run
+## Desktop run
 
 ```bash
 npm start
 ```
 
-Background / tray (no window until you open it from the tray):
+Background / tray:
 
 ```bash
 npm run start:bg
 ```
+
+## Web run (local)
+
+1. Copy `.env.example` → `.env` and set `SUPABASE_SERVICE_ROLE_KEY` (Supabase → Project Settings → API → `service_role`).
+2. `npx playwright install chromium`
+3. `npm run start:web` → http://localhost:3000
+
+## Web deploy (Render free)
+
+1. Use repo `render.yaml` or set the existing **Profile-Updater** service:
+   - **Build:** `npm install && npx playwright install chromium`
+   - **Start:** `npm run start:web` (not `electron`)
+2. Env vars: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `CRON_SECRET`, `NODE_ENV=production`
+3. Cron every 5 minutes: `POST https://<your-service>.onrender.com/internal/tick` with header `x-cron-secret: <CRON_SECRET>`
+
+Supabase project: **Profile-Updater** (`stpbrwrfblijjycuvmkn`).
 
 Closing the window hides to the **system tray** — the scheduler keeps running. Use the tray icon → **Quit** to stop fully.
 

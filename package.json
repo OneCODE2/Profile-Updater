@@ -1,16 +1,32 @@
 {
   "name": "naukari-profile-updater",
   "version": "1.0.0",
-  "description": "Electron mini-app that keeps a Naukri profile fresh via headline/summary dot-cycle and resume re-upload",
+  "description": "Naukri profile updater — Electron desktop + web deploy (Render + Supabase)",
   "main": "electron/main.js",
   "scripts": {
     "start": "electron .",
     "start:bg": "electron . --background",
+    "start:web": "node server/index.js",
     "test": "node --test test/*.test.js"
   },
-  "keywords": ["naukri", "electron", "playwright"],
+  "keywords": [
+    "naukri",
+    "electron",
+    "playwright",
+    "render",
+    "supabase"
+  ],
   "license": "ISC",
+  "engines": {
+    "node": ">=20"
+  },
   "dependencies": {
+    "@supabase/supabase-js": "^2.119.2",
+    "cookie-parser": "^1.4.7",
+    "dotenv": "^18.0.10",
+    "express": "^5.3.0",
+    "multer": "^2.5.0",
+    "playwright": "^1.65.1",
     "playwright-core": "^1.61.1"
   },
   "devDependencies": {

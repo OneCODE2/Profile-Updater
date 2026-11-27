@@ -7,6 +7,7 @@ const {
   slotsDueNow,
   nextSlotAfter,
   slotsEveryHours,
+  passedNewSlotKeys,
 } = require("../electron/scheduler");
 
 describe("normalizeSlot", () => {
@@ -81,5 +82,30 @@ describe("nextSlotAfter", () => {
       day: "2026-11-24",
       slot: "09:00",
     });
+  });
+});
+
+describe("passedNewSlotKeys", () => {
+  const now = new Date(2026, 10, 27, 10, 0, 30); // 10:00 local
+  const day = "2026-11-27";
+
+  it("skips new slots that are past or the current minute, keeps future ones armed", () => {
+    assert.deepEqual(
+      passedNewSlotKeys([], ["09:00", "10:00", "11:00"], now),
+      [`${day}|09:00`, `${day}|10:00`],
+    );
+  });
+
+  it("ignores slots that were already saved before", () => {
+    assert.deepEqual(passedNewSlotKeys(["09:00"], ["09:00", "10:00"], now), [`${day}|10:00`]);
+  });
+
+  it("returns nothing when no slot changed", () => {
+    assert.deepEqual(passedNewSlotKeys(["09:00"], ["09:00"], now), []);
+  });
+
+  it("a skipped slot no longer counts as due", () => {
+    const fired = new Set(passedNewSlotKeys([], ["10:00"], now));
+    assert.deepEqual(slotsDueNow(["10:00"], fired, now), []);
   });
 });

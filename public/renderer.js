@@ -144,14 +144,16 @@ function clampInput(input, { min, max }) {
 
 function makeNumberField({ className, value, min, max, ariaLabel }) {
   const input = document.createElement("input");
-  input.type = "number";
+  input.type = "text";
   input.className = `time-value ${className}`;
-  input.min = String(min);
-  input.max = String(max);
-  input.step = "1";
+  input.maxLength = 2;
   input.inputMode = "numeric";
   input.setAttribute("aria-label", ariaLabel);
   input.value = pad2(value);
+  // Digits only, max 2 (enter 09, not 9); padded on blur/change by clampInput.
+  input.addEventListener("input", () => {
+    input.value = input.value.replace(/\D/g, "").slice(0, 2);
+  });
   input.addEventListener("change", () => clampInput(input, { min, max }));
   input.addEventListener("blur", () => clampInput(input, { min, max }));
 
@@ -439,7 +441,21 @@ function mapClickToPage(ev) {
   };
 }
 
-els.btnAddSlot.addEventListener("click", () => addSlotRow("09:00"));
+function nowHhMm() {
+  const d = new Date();
+  return `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+}
+
+// A saved time is useless while the schedule is off, so adding/editing one turns it on.
+function enableScheduleIfSlots() {
+  if (!applyingState && collectSlots().length) els.scheduleEnabled.checked = true;
+}
+
+els.btnAddSlot.addEventListener("click", () => {
+  addSlotRow(nowHhMm());
+  enableScheduleIfSlots();
+  scheduleAutoSave();
+});
 els.btnEvery4h.addEventListener("click", () => {
   const existing = collectSlots();
   const start = existing[0] || "09:00";
@@ -452,6 +468,7 @@ els.btnEvery4h.addEventListener("click", () => {
     generated.push(`${pad2(hh)}:${pad2(mm)}`);
   }
   renderSlots(generated);
+  enableScheduleIfSlots();
   scheduleAutoSave();
 });
 
@@ -630,9 +647,13 @@ for (const input of [
 }
 
 els.scheduleEnabled.addEventListener("change", scheduleAutoSave);
-els.slots.addEventListener("change", scheduleAutoSave);
+els.slots.addEventListener("change", () => {
+  enableScheduleIfSlots();
+  scheduleAutoSave();
+});
 els.slots.addEventListener("click", (e) => {
   if (e.target.closest(".time-step, .ampm-btn, .secondary")) {
+    enableScheduleIfSlots();
     scheduleAutoSave();
   }
 });

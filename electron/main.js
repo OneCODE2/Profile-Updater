@@ -12,6 +12,7 @@ const { createStore } = require("./store");
 const {
   normalizeSlots,
   slotsDueNow,
+  passedNewSlotKeys,
   nextSlotAfter,
   currentDayKey,
 } = require("./scheduler");
@@ -113,7 +114,7 @@ async function doRun(trigger) {
 
 function startScheduler() {
   if (tickTimer) clearInterval(tickTimer);
-  // shortcut: minute poll is enough for HH:MM slots; switch to cron if sub-minute needed
+  // 1s poll so a run starts when the minute is reached (slots are HH:MM, deduped by firedKeys)
   tickTimer = setInterval(() => {
     const settings = store.read();
     if (!settings.scheduleEnabled || running) return;
@@ -123,7 +124,7 @@ function startScheduler() {
     for (const slot of due) firedKeys.add(`${day}|${slot}`);
     store.appendLog(`Scheduled run at ${due.join(", ")}`);
     doRun("schedule").catch(() => {});
-  }, 15_000);
+  }, 1_000);
 }
 
 function showMainWindow() {
@@ -216,7 +217,13 @@ app.whenReady().then(() => {
       if (payload.slots !== undefined) {
         payload.slots = normalizeSlots(payload.slots);
       }
+      const before = store.read();
       const settings = store.write(payload);
+      if (settings.scheduleEnabled) {
+        // Nothing was armed while the schedule was off, so then every slot counts as new.
+        const armed = before.scheduleEnabled ? before.slots : [];
+        for (const k of passedNewSlotKeys(armed, settings.slots)) firedKeys.add(k);
+      }
       if (!quiet) sendStatus({ type: "saved" });
       return { ok: true, settings };
     } catch (err) {

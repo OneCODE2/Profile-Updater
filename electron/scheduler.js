@@ -54,6 +54,20 @@ const slotsDueNow = (slots, firedKeys, now = new Date()) => {
 };
 
 /**
+ * Fired-keys to pre-mark when slots are saved: slots newly added/edited whose time is
+ * already past or is the current minute. They are skipped for today and first run tomorrow,
+ * so adding or editing a time never triggers an unneeded run.
+ */
+const passedNewSlotKeys = (prevSlots, nextSlots, now = new Date()) => {
+  const prev = new Set(normalizeSlots(prevSlots));
+  const hhmm = currentHhMm(now);
+  const day = currentDayKey(now);
+  return normalizeSlots(nextSlots)
+    .filter((s) => !prev.has(s) && s <= hhmm)
+    .map((s) => `${day}|${s}`);
+};
+
+/**
  * Next upcoming slot today or tomorrow (for UI display).
  * Returns { day, slot } or null.
  */
@@ -101,6 +115,7 @@ module.exports = {
   currentHhMm,
   currentDayKey,
   slotsDueNow,
+  passedNewSlotKeys,
   nextSlotAfter,
   slotsEveryHours,
 };

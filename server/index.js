@@ -228,6 +228,20 @@ app.post("/internal/tick", async (req, res) => {
 
 app.use(express.static(path.join(__dirname, "..", "public")));
 
+// In-process scheduler: with local storage there is no external cron to hit /internal/tick.
+let ticking = false;
+setInterval(async () => {
+  if (ticking) return;
+  ticking = true;
+  try {
+    await tickSchedules();
+  } catch (err) {
+    console.error("schedule tick failed:", err);
+  } finally {
+    ticking = false;
+  }
+}, 5 * 1000);
+
 app.listen(PORT, () => {
   console.log(`Profile Updater web listening on :${PORT}`);
 });

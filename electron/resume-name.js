@@ -12,12 +12,16 @@ const sanitizePart = (value) =>
 
 /**
  * Guess first/last/role from a resume file name when the user left fields blank.
- * Understands our own `*_Resume_YYYY-MM-DD` pattern and plain `First_Last_Role` stems.
+ * Understands our own `*_Resume_DD-MM-YYYY` pattern (and legacy `YYYY-MM-DD`)
+ * plus plain `First_Last_Role` stems.
  */
 const identityFromResumePath = (sourcePath) => {
   if (!sourcePath) return { firstName: "", lastName: "", role: "" };
   const stem = path.basename(String(sourcePath), path.extname(sourcePath));
-  const cleaned = stem.replace(/_Resume_\d{4}-\d{2}-\d{2}$/i, "");
+  const cleaned = stem.replace(
+    /_Resume_(\d{2}-\d{2}-\d{4}|\d{4}-\d{2}-\d{2})$/i,
+    "",
+  );
   const parts = cleaned.split(/[_\s]+/).filter(Boolean);
   if (parts.length >= 3) {
     return {
@@ -50,7 +54,7 @@ const resolveIdentity = (identity = {}, sourcePath = "") => {
 };
 
 /**
- * FirstName_LastName_Role_Resume_YYYY-MM-DD.pdf
+ * FirstName_LastName_Role_Resume_DD-MM-YYYY.pdf
  * Uses the user's local calendar date of `now` (never hard-coded).
  */
 const buildResumeFileName = (
@@ -60,7 +64,7 @@ const buildResumeFileName = (
   const y = now.getFullYear();
   const m = String(now.getMonth() + 1).padStart(2, "0");
   const d = String(now.getDate()).padStart(2, "0");
-  return `${sanitizePart(firstName)}_${sanitizePart(lastName)}_${sanitizePart(role)}_Resume_${y}-${m}-${d}.pdf`;
+  return `${sanitizePart(firstName)}_${sanitizePart(lastName)}_${sanitizePart(role)}_Resume_${d}-${m}-${y}.pdf`;
 };
 
 /**

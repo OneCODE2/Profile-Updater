@@ -70,7 +70,7 @@ Scheduled runs need the **process** alive (tray is enough — window can be clos
 
 Resume copies are named (date = your PC’s local calendar day at run time):
 
-`FirstName_LastName_Role_Resume_YYYY-MM-DD.pdf`
+`FirstName_LastName_Role_Resume_DD-MM-YYYY.pdf`
 
 ## Tests
 

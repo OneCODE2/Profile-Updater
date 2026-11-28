@@ -27,6 +27,19 @@ describe("identityFromResumePath / resolveIdentity", () => {
   it("parses our standard renamed pattern", () => {
     assert.deepEqual(
       identityFromResumePath(
+        "C:\\tmp\\Ada_Lovelace_Software_Engineer_Resume_23-11-2026.pdf",
+      ),
+      {
+        firstName: "Ada",
+        lastName: "Lovelace",
+        role: "Software_Engineer",
+      },
+    );
+  });
+
+  it("still parses legacy YYYY-MM-DD resume names", () => {
+    assert.deepEqual(
+      identityFromResumePath(
         "C:\\tmp\\Ada_Lovelace_Software_Engineer_Resume_2026-11-23.pdf",
       ),
       {
@@ -49,14 +62,14 @@ describe("identityFromResumePath / resolveIdentity", () => {
 });
 
 describe("buildResumeFileName", () => {
-  it("builds FirstName_LastName_Role_Resume_YYYY-MM-DD.pdf from local now", () => {
+  it("builds FirstName_LastName_Role_Resume_DD-MM-YYYY.pdf from local now", () => {
     const now = new Date(2026, 10, 23); // local Nov 23, 2026
     assert.equal(
       buildResumeFileName(
         { firstName: "Ada", lastName: "Lovelace", role: "Software Engineer" },
         now,
       ),
-      "Ada_Lovelace_Software_Engineer_Resume_2026-11-23.pdf",
+      "Ada_Lovelace_Software_Engineer_Resume_23-11-2026.pdf",
     );
   });
 
@@ -69,8 +82,8 @@ describe("buildResumeFileName", () => {
       { firstName: "A", lastName: "B", role: "C" },
       new Date(2026, 10, 24),
     );
-    assert.equal(today, "A_B_C_Resume_2026-11-23.pdf");
-    assert.equal(tomorrow, "A_B_C_Resume_2026-11-24.pdf");
+    assert.equal(today, "A_B_C_Resume_23-11-2026.pdf");
+    assert.equal(tomorrow, "A_B_C_Resume_24-11-2026.pdf");
   });
 });
 
@@ -87,7 +100,7 @@ describe("prepareResumeCopy", () => {
       { firstName: "Ada", lastName: "Lovelace", role: "Dev" },
       now,
     );
-    assert.equal(path.basename(dest), "Ada_Lovelace_Dev_Resume_2026-01-05.pdf");
+    assert.equal(path.basename(dest), "Ada_Lovelace_Dev_Resume_05-01-2026.pdf");
     assert.ok(fs.existsSync(dest));
   });
 

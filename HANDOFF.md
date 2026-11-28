@@ -9,7 +9,7 @@ Reference automation (read-only): `d:\New folder\naukari\naukri_update\naukri-he
 - Electron + plain HTML/CSS/JS (no React)
 - Session login only (open Chrome → user signs into Naukri; no password storage)
 - Each run: dot-cycle headline + profile summary, then rename/copy resume and re-upload
-- Resume name: `FirstName_LastName_Role_Resume_YYYY-MM-DD.pdf`
+- Resume name: `FirstName_LastName_Role_Resume_DD--MM--YYYY.pdf`
 - Up to 4 daily time slots; in-process scheduler (app must stay open)
 - Settings in Electron `userData` JSON (no DB yet)
 

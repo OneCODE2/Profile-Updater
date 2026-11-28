@@ -361,6 +361,51 @@ describe("extension storage and build", () => {
     assert.equal(blocked.ok, false);
   });
 
+  it("D16b clearing times turns the schedule off and adding a time turns it back on", () => {
+    let state = defaultState();
+    state.settings.actions = { headline: true, summary: true, resume: false };
+    state.connection = {
+      status: "connected_last_verified",
+      identityReliable: true,
+      accountRef: "acct-1",
+      verifiedAt: now.toISOString(),
+    };
+    const cleared = commitSettings(
+      state,
+      { customSlots: [], scheduleEnabled: true },
+      state.settings.revision,
+      now,
+      zone,
+    );
+    assert.equal(cleared.state.settings.scheduleEnabled, false);
+    assert.deepEqual(cleared.state.settings.customSlots, []);
+    state = cleared.state;
+    const restored = commitSettings(
+      state,
+      { customSlots: ["20:50"], scheduleEnabled: false },
+      state.settings.revision,
+      now,
+      zone,
+    );
+    assert.equal(restored.ok, true);
+    assert.equal(restored.state.settings.scheduleEnabled, true);
+    assert.deepEqual(restored.state.settings.customSlots, ["20:50"]);
+  });
+
+  it("D16c picking a resume fills blank name fields from the file name", () => {
+    const state = defaultState();
+    assert.equal(state.settings.firstName, "");
+    const accepted = acceptPdfCandidate(state, pdf({ name: "Aditya_Software_Engineer_.pdf" }));
+    assert.equal(accepted.ok, true);
+    const saved = commitResumeMeta(state, accepted.record);
+    assert.equal(saved.settings.firstName, "Aditya");
+    assert.equal(saved.settings.lastName, "Software");
+    assert.equal(saved.settings.role, "Engineer");
+    const named = describeIdentity(saved.settings, saved.resumeMeta.originalName, now);
+    assert.equal(named.ok, true);
+    assert.match(named.fileName, /^Aditya_Software_Engineer_Resume_/);
+  });
+
   it("D17 unattended runs stay blocked when the account id is not reliable", () => {
     const state = defaultState();
     state.settings.termsAcknowledged = true;

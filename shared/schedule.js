@@ -41,7 +41,7 @@ const eligibleRecord = (record) => {
   if (!record) return true;
   if (isHandled(record)) return false;
   if ((record.attempts || 0) >= MAX_ATTEMPTS) return false;
-  if (record.state === "unverified" || record.state === "conflict") return false;
+  if (record.state === "unverified") return false;
   if (record.state === "running") return false;
   return true;
 };

@@ -4,7 +4,7 @@
  */
 
 const { emptyCustomMessage, planFieldUpdate, uploadedToday } = require("../../shared/bump");
-const { describeIdentity } = require("../../shared/filename");
+const { describeIdentity, identityFromResumePath } = require("../../shared/filename");
 const { parseCustomSlots, normalizeSlot } = require("../../shared/slots");
 const {
   localParts,
@@ -369,7 +369,7 @@ const prepareRun = (state, input) => {
 
   if (current.reviewRequired && trigger !== "retry") {
     const prior = current.lastResult?.status;
-    if (prior === "unverified" || (trigger === "manual" && prior === "conflict")) {
+    if (prior === "unverified" || prior === "conflict") {
       current = {
         ...current,
         reviewRequired: false,
@@ -1105,19 +1105,19 @@ const commitSettings = (state, patch, baseRevision, now, timeZone = systemTimeZo
 
   let warning = null;
   const slots = effectiveSlots(next);
-  if (!slots.length) next.scheduleEnabled = false;
-  if (schedulePatch.scheduleEnabled === true) {
-    const gate = scheduleGate({ ...next, scheduleEnabled: true }, state);
-    if (!gate.ok) {
-      next.scheduleEnabled = false;
-      warning = gate.message;
-    } else next.scheduleEnabled = true;
-  } else if (schedulePatch.scheduleEnabled === false) {
+  // No times → schedule off. Adding times turns it back on (even if the box was unchecked).
+  // Explicit uncheck with times kept still turns it off.
+  if (!slots.length) {
     next.scheduleEnabled = false;
-  } else if (slotsChanged && !state.settings.scheduleEnabled && slots.length) {
+  } else if (schedulePatch.scheduleEnabled === false && !slotsChanged) {
+    next.scheduleEnabled = false;
+  } else {
     const gate = scheduleGate({ ...next, scheduleEnabled: true }, state);
     if (gate.ok) next.scheduleEnabled = true;
-    else warning = gate.message;
+    else {
+      next.scheduleEnabled = false;
+      if (schedulePatch.scheduleEnabled === true || slotsChanged) warning = gate.message;
+    }
   }
 
   next.revision = state.settings.revision + 1;
@@ -1304,10 +1304,24 @@ const acceptPdfCandidate = (state, candidate) => {
   return { ok: true, state, record, previous: state.resumeMeta };
 };
 
-const commitResumeMeta = (state, record) => ({
-  ...state,
-  resumeMeta: resumeMetaFrom(record),
-});
+const commitResumeMeta = (state, record) => {
+  const fromFile = identityFromResumePath(record?.name || "");
+  const settings = { ...state.settings };
+  let filled = false;
+  for (const key of ["firstName", "lastName", "role"]) {
+    if (!String(settings[key] || "").trim() && fromFile[key]) {
+      settings[key] = fromFile[key];
+      filled = true;
+    }
+  }
+  return {
+    ...state,
+    resumeMeta: resumeMetaFrom(record),
+    settings: filled
+      ? { ...settings, revision: state.settings.revision + 1 }
+      : state.settings,
+  };
+};
 
 const applyReconcile = (state, record) => {
   const result = reconcileResume(state.resumeMeta, record);

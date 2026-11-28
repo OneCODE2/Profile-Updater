@@ -310,9 +310,13 @@ function createApp(platform) {
     }
     if (msg.type === "SAVE_SETTINGS" || msg.type === "FLUSH_SETTINGS") {
       const beforeRevision = state.scheduleRevision;
+      const wasEnabled = !!state.settings.scheduleEnabled;
       const saved = commitSettings(state, msg.patch || {}, msg.revision, now(), zone());
       await save(saved.state);
       if (saved.state.scheduleRevision !== beforeRevision) await syncAlarms();
+      if (saved.ok && saved.state.settings.scheduleEnabled && !wasEnabled) {
+        await beginCatchUp("startup");
+      }
       return {
         ok: saved.ok,
         message: saved.message || "",

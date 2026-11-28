@@ -1,4 +1,5 @@
 const { runNowDisabled } = require("./engine");
+const { describeIdentity } = require("../../shared/filename");
 const { connectionLabel, whenLabel, slotWhen, sizeLabel, slotStatusLabel } = require("./labels");
 
 const STANDARD_TIMES = ["09:00", "11:30", "14:00", "16:00"];
@@ -127,6 +128,13 @@ function boot() {
       state.resumeMeta
         ? `${state.resumeMeta.originalName} · ${sizeLabel(state.resumeMeta.size)}`
         : "No PDF selected",
+    );
+    const named = state.resumeMeta
+      ? describeIdentity(state.settings, state.resumeMeta.originalName || "")
+      : null;
+    text(
+      $("upload-name"),
+      named?.ok ? `Upload name: ${named.fileName}` : named?.message || "",
     );
     text($("pdf-label"), state.resumeMeta ? "Change resume" : "Add resume");
     const gate = runNowDisabled(state);

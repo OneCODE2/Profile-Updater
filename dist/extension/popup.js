@@ -168,16 +168,12 @@ const planFieldUpdate = ({
   if (mode === "custom") {
     const addon = String(customText || "").trim();
     if (!addon) return { status: "invalid", message: emptyCustomMessage(field) };
-    if (owned && !splitOwnedSuffix(raw, owned).matched) {
-      return {
-        status: "conflict",
-        message: "Profile changed outside this run; review before retrying.",
-      };
-    }
-    if (!owned && alreadyHasSuffix(raw, addon)) {
+    // External edit: drop the old owned suffix and continue from the live text.
+    const split = owned ? splitOwnedSuffix(raw, owned) : { base: raw, matched: false };
+    const base = split.matched ? split.base : raw;
+    if ((!owned || !split.matched) && alreadyHasSuffix(raw, addon)) {
       return { status: "no_change", next: raw, ownedSuffix: addon };
     }
-    const base = owned ? splitOwnedSuffix(raw, owned).base : raw;
     let planned;
     try {
       planned = applyBump(base, { mode: "custom", customText: addon }, maxLen);
@@ -200,13 +196,8 @@ const planFieldUpdate = ({
   let working = raw;
   if (owned) {
     const split = splitOwnedSuffix(raw, owned);
-    if (!split.matched) {
-      return {
-        status: "conflict",
-        message: "Profile changed outside this run; review before retrying.",
-      };
-    }
-    working = split.base;
+    // External edit from another device: adopt the live text and bump from there.
+    if (split.matched) working = split.base;
   }
   const next = nextHeadline(working, maxLen);
   const dots = (next.match(/\.+$/) || [""])[0];
@@ -686,7 +677,7 @@ const eligibleRecord = (record) => {
   if (!record) return true;
   if (isHandled(record)) return false;
   if ((record.attempts || 0) >= MAX_ATTEMPTS) return false;
-  if (record.state === "unverified" || record.state === "conflict") return false;
+  if (record.state === "unverified") return false;
   if (record.state === "running") return false;
   return true;
 };
@@ -1109,7 +1100,7 @@ __m["extension/src/engine.js"]= {fn:function(module,exports,require){
  */
 
 const { emptyCustomMessage, planFieldUpdate, uploadedToday } = __req("shared/bump.js");
-const { describeIdentity } = __req("shared/filename.js");
+const { describeIdentity, identityFromResumePath } = __req("shared/filename.js");
 const { parseCustomSlots, normalizeSlot } = __req("shared/slots.js");
 const {
   localParts,
@@ -1474,7 +1465,7 @@ const prepareRun = (state, input) => {
 
   if (current.reviewRequired && trigger !== "retry") {
     const prior = current.lastResult?.status;
-    if (prior === "unverified" || (trigger === "manual" && prior === "conflict")) {
+    if (prior === "unverified" || prior === "conflict") {
       current = {
         ...current,
         reviewRequired: false,
@@ -2210,19 +2201,19 @@ const commitSettings = (state, patch, baseRevision, now, timeZone = systemTimeZo
 
   let warning = null;
   const slots = effectiveSlots(next);
-  if (!slots.length) next.scheduleEnabled = false;
-  if (schedulePatch.scheduleEnabled === true) {
-    const gate = scheduleGate({ ...next, scheduleEnabled: true }, state);
-    if (!gate.ok) {
-      next.scheduleEnabled = false;
-      warning = gate.message;
-    } else next.scheduleEnabled = true;
-  } else if (schedulePatch.scheduleEnabled === false) {
+  // No times → schedule off. Adding times turns it back on (even if the box was unchecked).
+  // Explicit uncheck with times kept still turns it off.
+  if (!slots.length) {
     next.scheduleEnabled = false;
-  } else if (slotsChanged && !state.settings.scheduleEnabled && slots.length) {
+  } else if (schedulePatch.scheduleEnabled === false && !slotsChanged) {
+    next.scheduleEnabled = false;
+  } else {
     const gate = scheduleGate({ ...next, scheduleEnabled: true }, state);
     if (gate.ok) next.scheduleEnabled = true;
-    else warning = gate.message;
+    else {
+      next.scheduleEnabled = false;
+      if (schedulePatch.scheduleEnabled === true || slotsChanged) warning = gate.message;
+    }
   }
 
   next.revision = state.settings.revision + 1;
@@ -2409,10 +2400,24 @@ const acceptPdfCandidate = (state, candidate) => {
   return { ok: true, state, record, previous: state.resumeMeta };
 };
 
-const commitResumeMeta = (state, record) => ({
-  ...state,
-  resumeMeta: resumeMetaFrom(record),
-});
+const commitResumeMeta = (state, record) => {
+  const fromFile = identityFromResumePath(record?.name || "");
+  const settings = { ...state.settings };
+  let filled = false;
+  for (const key of ["firstName", "lastName", "role"]) {
+    if (!String(settings[key] || "").trim() && fromFile[key]) {
+      settings[key] = fromFile[key];
+      filled = true;
+    }
+  }
+  return {
+    ...state,
+    resumeMeta: resumeMetaFrom(record),
+    settings: filled
+      ? { ...settings, revision: state.settings.revision + 1 }
+      : state.settings,
+  };
+};
 
 const applyReconcile = (state, record) => {
   const result = reconcileResume(state.resumeMeta, record);
@@ -2779,6 +2784,7 @@ module.exports = {
 }};
 __m["extension/src/popup.js"]= {fn:function(module,exports,require){
 const { runNowDisabled } = __req("extension/src/engine.js");
+const { describeIdentity } = __req("shared/filename.js");
 const { connectionLabel, whenLabel, slotWhen, sizeLabel, slotStatusLabel } = __req("extension/src/labels.js");
 
 const STANDARD_TIMES = ["09:00", "11:30", "14:00", "16:00"];
@@ -2907,6 +2913,13 @@ function boot() {
       state.resumeMeta
         ? `${state.resumeMeta.originalName} · ${sizeLabel(state.resumeMeta.size)}`
         : "No PDF selected",
+    );
+    const named = state.resumeMeta
+      ? describeIdentity(state.settings, state.resumeMeta.originalName || "")
+      : null;
+    text(
+      $("upload-name"),
+      named?.ok ? `Upload name: ${named.fileName}` : named?.message || "",
     );
     text($("pdf-label"), state.resumeMeta ? "Change resume" : "Add resume");
     const gate = runNowDisabled(state);

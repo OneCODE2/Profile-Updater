@@ -61,6 +61,7 @@ button:focus-visible, input:focus-visible {
 .time-row { display: flex; gap: 8px; align-items: center; margin: 6px 0; }
 .time-row input[type="time"] { font: inherit; color: var(--ink); background: var(--input); border: 1px solid var(--line); border-radius: 8px; padding: 4px 8px; }
 label.file {
+  position: relative;
   display: inline-block;
   margin: 6px 0;
   font-weight: 600;
@@ -69,17 +70,18 @@ label.file {
   color: var(--accent-ink);
   border-radius: 8px;
   padding: 8px 12px;
+  overflow: hidden;
 }
 label.file input {
   position: absolute;
-  width: 1px;
-  height: 1px;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
   padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  clip-path: inset(50%);
-  white-space: nowrap;
+  opacity: 0;
+  cursor: pointer;
+  font-size: 0;
   border: 0;
 }
 [hidden] { display: none !important; }

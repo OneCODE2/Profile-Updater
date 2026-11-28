@@ -136,15 +136,22 @@ describe("extension recovery", () => {
     assert.equal(dots.next, "Hello.");
   });
 
-  it("R03 an external edit is a conflict and is not stripped", () => {
+  it("R03 an external edit is adopted and the next bump continues from it", () => {
     const plan = planFieldUpdate({
       current: "Hello completely rewritten",
       mode: "custom",
       customText: "SDE",
       ownedSuffix: "SDE",
     });
-    assert.equal(plan.status, "conflict");
-    assert.equal(plan.next, undefined);
+    assert.equal(plan.status, "change");
+    assert.equal(plan.next, "Hello completely rewritten SDE");
+    const dots = planFieldUpdate({
+      current: "Edited on phone",
+      mode: "dot",
+      ownedSuffix: "..",
+    });
+    assert.equal(dots.status, "change");
+    assert.equal(dots.next, "Edited on phone.");
   });
 
   it("R03b discarding a conflict lets the next run edit the current headline", () => {
@@ -160,10 +167,8 @@ describe("extension recovery", () => {
     assert.equal(plan.status, "change");
   });
 
-  it("R03c a conflict closes the open headline editor", async () => {
+  it("R03c an external headline edit is updated from the live text", async () => {
     const { doc, headlineField } = profile();
-    const cancel = new El("button", { text: "Cancel" });
-    headlineField.parentElement.append(cancel);
     const state = {
       current: prepareRun(ready(), { trigger: "manual", now: at(2026, 11, 28, 10, 0), timeZone: zone }).state,
     };
@@ -174,9 +179,24 @@ describe("extension recovery", () => {
       url: "https://www.naukri.com/mnjuser/profile",
       hooks: bind(state),
     });
-    assert.equal(outcome.status, "conflict");
-    assert.equal(cancel.clicked, 1);
-    assert.equal(headlineField.value, "Full stack");
+    assert.equal(outcome.status, "success");
+    assert.equal(headlineField.value, "Full stack.");
+  });
+
+  it("R03e a scheduled run clears a prior conflict review on its own", () => {
+    const state = ready();
+    state.reviewRequired = true;
+    state.lastResult = { status: "conflict", message: "Profile changed outside this run; review before retrying." };
+    state.suffixState = { "acct-1": { headline: { suffix: ".." } } };
+    const prepared = prepareRun(state, {
+      trigger: "scheduled",
+      now: at(2026, 11, 28, 21, 0),
+      timeZone: zone,
+      slotKey: "2026-11-28|21:00",
+    });
+    assert.equal(prepared.ok, true);
+    assert.equal(prepared.state.reviewRequired, false);
+    assert.deepEqual(prepared.state.suffixState, {});
   });
 
   it("R03d a javascript profile link is clicked without opening that URL", async () => {

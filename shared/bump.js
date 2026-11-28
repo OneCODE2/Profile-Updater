@@ -161,16 +161,12 @@ const planFieldUpdate = ({
   if (mode === "custom") {
     const addon = String(customText || "").trim();
     if (!addon) return { status: "invalid", message: emptyCustomMessage(field) };
-    if (owned && !splitOwnedSuffix(raw, owned).matched) {
-      return {
-        status: "conflict",
-        message: "Profile changed outside this run; review before retrying.",
-      };
-    }
-    if (!owned && alreadyHasSuffix(raw, addon)) {
+    // External edit: drop the old owned suffix and continue from the live text.
+    const split = owned ? splitOwnedSuffix(raw, owned) : { base: raw, matched: false };
+    const base = split.matched ? split.base : raw;
+    if ((!owned || !split.matched) && alreadyHasSuffix(raw, addon)) {
       return { status: "no_change", next: raw, ownedSuffix: addon };
     }
-    const base = owned ? splitOwnedSuffix(raw, owned).base : raw;
     let planned;
     try {
       planned = applyBump(base, { mode: "custom", customText: addon }, maxLen);
@@ -193,13 +189,8 @@ const planFieldUpdate = ({
   let working = raw;
   if (owned) {
     const split = splitOwnedSuffix(raw, owned);
-    if (!split.matched) {
-      return {
-        status: "conflict",
-        message: "Profile changed outside this run; review before retrying.",
-      };
-    }
-    working = split.base;
+    // External edit from another device: adopt the live text and bump from there.
+    if (split.matched) working = split.base;
   }
   const next = nextHeadline(working, maxLen);
   const dots = (next.match(/\.+$/) || [""])[0];

@@ -8,7 +8,8 @@
     "start:bg": "electron . --background",
     "start:web": "node server/index.js",
     "build": "node scripts/install-browsers.js",
-    "test": "node --test test/*.test.js"
+    "test": "node --test test/*.test.js",
+    "build:extension": "node scripts/build-extension.js"
   },
   "keywords": [
     "naukri",

@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Naukri Profile Updater</title>
+    <link rel="stylesheet" href="options.css" />
+  </head>
+  <body>
+    <main>
+      <header>
+        <h1>Naukri Profile Updater</h1>
+        <p class="sub">Update your headline, summary, and resume on a schedule.</p>
+        <p id="save-state" class="hint" role="status">Settings save as you edit.</p>
+        <p id="save-error" class="warn" role="alert"></p>
+      </header>
+
+      <section class="card">
+        <h2>Account</h2>
+        <p id="connection" class="status">Not connected</p>
+        <p id="verified" class="hint">Not checked yet.</p>
+        <button type="button" id="connect" class="primary">Connect</button>
+        <p class="hint">Opens Naukri in this Chrome. Sign in on that tab if it asks. Your password stays on Naukri.</p>
+      </section>
+
+      <section class="card">
+        <h2>What to update</h2>
+        <label class="row"><input type="checkbox" id="act-headline" checked /> Resume headline</label>
+        <label class="row"><input type="checkbox" id="act-summary" checked /> Profile summary</label>
+        <label class="row"><input type="checkbox" id="act-resume" checked /> Resume upload</label>
+        <label>
+          Text change
+          <select id="mode">
+            <option value="dot">Add a trailing dot, then another, then clear</option>
+            <option value="custom">Add my own text at the end</option>
+          </select>
+        </label>
+        <div id="custom-fields" class="custom-fields" hidden>
+          <label>
+            Add to the headline
+            <textarea id="custom-headline" placeholder="Text added at the end of the headline"></textarea>
+          </label>
+          <label>
+            Add to the summary
+            <textarea id="custom-summary" placeholder="Text added at the end of the summary"></textarea>
+          </label>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>Resume</h2>
+        <p id="pdf" class="path">No PDF selected</p>
+        <p id="pdf-error" class="warn" role="alert"></p>
+        <div class="slot-actions">
+          <label class="file">
+            Choose PDF
+            <input type="file" id="pdf-file" accept="application/pdf,.pdf" />
+          </label>
+          <button type="button" id="remove-pdf" class="secondary">Remove</button>
+        </div>
+        <p class="hint">PDF only, under 6 MB. Each run uploads a renamed copy. Your original file is left alone.</p>
+        <label>
+          First name
+          <input id="first-name" type="text" autocomplete="given-name" placeholder="Optional" />
+        </label>
+        <label>
+          Last name
+          <input id="last-name" type="text" autocomplete="family-name" placeholder="Optional" />
+        </label>
+        <label>
+          Role
+          <input id="role" type="text" placeholder="Optional — e.g. Software Engineer" />
+        </label>
+        <p id="identity" class="hint"></p>
+        <p class="preview">Upload name: <code id="preview">—</code></p>
+      </section>
+
+      <section class="card">
+        <h2>Schedule</h2>
+        <p class="hint" id="terms-note">On by default. Keep this on one laptop. Chrome has to stay open.</p>
+        <label class="row">
+          <input type="checkbox" id="terms" checked />
+          I checked Naukri's terms and want scheduled updates on this laptop
+        </label>
+        <label id="confirm-label" class="row">
+          <input type="checkbox" id="confirm-account" checked />
+          This Chrome profile is the Naukri account to update
+        </label>
+        <p class="hint">That choice stays saved in this browser. The schedule and Run now use it.</p>
+        <label class="row"><input type="checkbox" id="schedule-enabled" checked /> Enable daily schedule</label>
+        <label class="row">
+          <input type="checkbox" id="standard-times" />
+          Standard times — 9:00, 11:30, 2:00, 4:00
+        </label>
+        <p id="standard-summary" class="hint" hidden>9:00, 11:30, 2:00, and 4:00</p>
+        <label class="row">
+          <input type="checkbox" id="every-4h" />
+          Every 4 hours
+        </label>
+        <div id="custom-schedule">
+          <div id="custom-times" class="slots"></div>
+          <button type="button" id="add-time" class="secondary">Add time</button>
+        </div>
+        <div id="interval-schedule" hidden>
+          <label>
+            First time
+            <input type="time" id="anchor" value="09:00" />
+          </label>
+        </div>
+        <p id="effective" class="hint"></p>
+        <p id="zone" class="hint"></p>
+        <p id="next-run" class="status">Next run: off</p>
+        <ul id="today"></ul>
+      </section>
+
+      <section class="actions">
+        <p id="progress" role="status"></p>
+        <p id="run-reason" class="warn" role="status"></p>
+        <div class="slot-actions">
+          <button type="button" id="run-now" class="primary">Run now</button>
+          <button type="button" id="cancel" hidden>Cancel run</button>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>Status</h2>
+        <p id="activity-empty" class="hint">No runs yet.</p>
+        <ul id="history"></ul>
+        <pre id="log" class="log" hidden></pre>
+        <button type="button" id="clear-log" class="secondary" hidden>Clear log</button>
+      </section>
+
+      <details class="advanced">
+        <summary>More</summary>
+        <div class="slot-actions">
+          <button type="button" id="check">Check again</button>
+          <button type="button" id="disconnect">Disconnect</button>
+          <button type="button" id="pause">Pause today</button>
+          <button type="button" id="resume-day">Resume today</button>
+        </div>
+        <p class="hint">Pause skips the rest of today. Tomorrow is unchanged.</p>
+        <div class="slot-actions">
+          <button type="button" id="retry">Retry last failure</button>
+          <button type="button" id="review">Review unfinished update</button>
+          <button type="button" id="discard">Discard unfinished update</button>
+          <button type="button" id="resume-auto">Continue after a Naukri check</button>
+        </div>
+        <p class="hint" id="privacy">
+          Stop waits for the next step. A change already sent to Naukri stays there.
+          Version <span id="version"></span>.
+        </p>
+        <button type="button" id="reset" class="secondary">Reset this extension</button>
+      </details>
+    </main>
+    <script src="options.js"></script>
+  </body>
+</html>

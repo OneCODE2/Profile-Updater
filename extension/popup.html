@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Naukri Profile Updater</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <main>
+      <h1>Naukri Profile Updater</h1>
+      <p id="connection" class="status">Not connected</p>
+      <p id="verified" class="hint">Not checked yet.</p>
+      <button type="button" id="connect" class="primary">Connect</button>
+
+      <p id="pdf" class="hint">No PDF selected</p>
+      <label class="file">Change PDF <input id="pdf-file" type="file" accept="application/pdf,.pdf" /></label>
+      <p id="pdf-error" class="warn" role="alert"></p>
+
+      <label class="row"><input id="act-headline" type="checkbox" checked /> Resume headline</label>
+      <label class="row"><input id="act-summary" type="checkbox" checked /> Profile summary</label>
+      <label class="row"><input id="act-resume" type="checkbox" checked /> Resume upload</label>
+      <label class="row"><input id="terms" type="checkbox" checked /> I checked Naukri's terms</label>
+      <label class="row"><input id="schedule-enabled" type="checkbox" checked /> Enable daily schedule</label>
+      <label class="row"><input id="standard-times" type="checkbox" /> Standard times — 9:00, 11:30, 2:00, 4:00</label>
+      <p id="standard-summary" class="hint">9:00, 11:30, 2:00, and 4:00</p>
+      <div id="custom-times"></div>
+      <button type="button" id="add-time">Add time</button>
+      <label id="confirm-label" class="row">
+        <input id="confirm-account" type="checkbox" checked />
+        This Chrome profile is my Naukri account
+      </label>
+
+      <p id="next-run" class="hint"></p>
+      <ul id="today"></ul>
+      <p id="last-success" class="hint"></p>
+      <p id="warning" class="warn" role="status"></p>
+      <p id="progress" role="status"></p>
+      <p id="run-reason" class="warn" role="status"></p>
+      <div class="actions">
+        <button type="button" id="run-now" class="primary">Run now</button>
+        <button type="button" id="cancel" hidden>Cancel run</button>
+        <button type="button" id="discard" hidden>Discard unfinished update</button>
+        <button type="button" id="open-settings">More</button>
+      </div>
+    </main>
+    <script src="popup.js"></script>
+  </body>
+</html>

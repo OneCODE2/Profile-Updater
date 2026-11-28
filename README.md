@@ -77,3 +77,16 @@ Resume copies are named (date = your PC’s local calendar day at run time):
 ```bash
 npm test
 ```
+
+## Chrome extension
+
+Personal, local-only Manifest V3 extension. It does not use the desktop app, the website, or any server. Full install, update, privacy, and troubleshooting steps are in [extension/README.md](extension/README.md).
+
+```bash
+npm test
+npm run build:extension
+```
+
+Load the unpacked folder `dist/extension/` in Chrome 148 or newer. The schedule stays off until you enable it. Scheduled runs stay blocked when this Chrome profile cannot show a reliable Naukri account id. Naukri's live page and terms were not verified in this repo; the extension fails closed instead of guessing.
+
+Do not load the extension from a folder that contains a real resume. Rebuilding in place and clicking Reload keeps the extension id. Uninstalling or moving the folder can drop local settings and the saved PDF copy.

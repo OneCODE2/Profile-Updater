@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Naukri Profile Updater",
   "version": "1.0.0",
-  "description": "Local-only Naukri profile updater. Schedule stays off until you turn it on.",
+  "description": "Local-only Naukri profile updater. Daily schedule starts on.",
   "minimum_chrome_version": "148",
   "message_serialization": "structured_clone",
   "incognito": "not_allowed",

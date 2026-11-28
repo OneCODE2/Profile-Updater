@@ -4,7 +4,7 @@ const { planFieldUpdate, journalDecision } = require("../shared/bump");
 const { El, documentFrom } = require("./mini-dom");
 const { waitForProfile } = require("../extension/src/dom");
 const { runSteps } = require("../extension/src/runner");
-const { judgeUpload, classifyFailure } = require("../extension/src/engine");
+const { judgeUpload, classifyFailure, runNowDisabled } = require("../extension/src/engine");
 const {
   defaultState,
   prepareRun,
@@ -19,6 +19,7 @@ const {
   onTabRemoved,
   setFocus,
   cancelRun,
+  discardJournal,
   notePage,
   noteConnection,
   fieldPlanFor,
@@ -144,6 +145,38 @@ describe("extension recovery", () => {
     });
     assert.equal(plan.status, "conflict");
     assert.equal(plan.next, undefined);
+  });
+
+  it("R03b discarding a conflict lets the next run edit the current headline", () => {
+    const state = ready();
+    state.suffixState = { "acct-1": { headline: { suffix: ".." } } };
+    state.reviewRequired = true;
+    state.lastResult = { status: "conflict", message: "Profile changed outside this run; review before retrying." };
+    assert.equal(runNowDisabled(state).disabled, false);
+    const cleared = discardJournal(state);
+    assert.equal(cleared.state.reviewRequired, false);
+    assert.deepEqual(cleared.state.suffixState, {});
+    const plan = fieldPlanFor(cleared.state, "headline", "Full stack engineer");
+    assert.equal(plan.status, "change");
+  });
+
+  it("R03c a conflict closes the open headline editor", async () => {
+    const { doc, headlineField } = profile();
+    const cancel = new El("button", { text: "Cancel" });
+    headlineField.parentElement.append(cancel);
+    const state = {
+      current: prepareRun(ready(), { trigger: "manual", now: at(2026, 11, 28, 10, 0), timeZone: zone }).state,
+    };
+    state.current.suffixState = { "acct-1": { headline: { suffix: ".." } } };
+    const outcome = await runSteps(doc, {
+      state: state.current,
+      run: state.current.activeRun,
+      url: "https://www.naukri.com/mnjuser/profile",
+      hooks: bind(state),
+    });
+    assert.equal(outcome.status, "conflict");
+    assert.equal(cancel.clicked, 1);
+    assert.equal(headlineField.value, "Full stack");
   });
 
   it("R04 a word-count error stops before save and later steps", async () => {
@@ -428,6 +461,19 @@ describe("extension recovery", () => {
       filename: "Ada.pdf",
     });
     assert.equal(appeared.status, "verified");
+    const renamed = judgeUpload({
+      before: { pageText: "Uploaded on Nov 28, 2026" },
+      after: { pageText: "Ada_Lovelace_Dev_Resume_28-11-2026-1.pdf Uploaded on Nov 28, 2026" },
+      filename: "Ada_Lovelace_Dev_Resume_28-11-2026.pdf",
+    });
+    assert.equal(renamed.status, "verified");
+    const blocked = ready();
+    blocked.reviewRequired = true;
+    blocked.lastResult = { status: "unverified" };
+    assert.equal(runNowDisabled(blocked).disabled, false);
+    const again = prepareRun(blocked, { trigger: "manual", now: at(2026, 11, 28, 10, 0), timeZone: zone });
+    assert.equal(again.ok, true);
+    assert.equal(again.state.reviewRequired, false);
   });
 
   it("R20 timeout before a mutation is retryable and after a write is uncertain", () => {

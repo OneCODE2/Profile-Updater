@@ -60,6 +60,26 @@ button:focus-visible, input:focus-visible {
 .row { display: flex; gap: 8px; align-items: flex-start; margin: 6px 0; }
 .time-row { display: flex; gap: 8px; align-items: center; margin: 6px 0; }
 .time-row input[type="time"] { font: inherit; color: var(--ink); background: var(--input); border: 1px solid var(--line); border-radius: 8px; padding: 4px 8px; }
-label.file { display: inline-block; margin: 6px 0; font-weight: 600; cursor: pointer; }
-label.file input { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+label.file {
+  display: inline-block;
+  margin: 6px 0;
+  font-weight: 600;
+  cursor: pointer;
+  background: var(--accent);
+  color: var(--accent-ink);
+  border-radius: 8px;
+  padding: 8px 12px;
+}
+label.file input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
 [hidden] { display: none !important; }

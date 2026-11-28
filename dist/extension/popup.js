@@ -1443,12 +1443,16 @@ const prepareRun = (state, input) => {
   }
 
   if (current.reviewRequired && trigger !== "retry") {
-    return {
-      ok: false,
-      code: "REVIEW",
-      message: "Review unresolved update",
-      state: current,
-    };
+    if (trigger === "manual" && (current.lastResult?.status === "unverified" || current.lastResult?.status === "conflict")) {
+      current = { ...current, reviewRequired: false, pendingJournal: null, suffixState: {} };
+    } else {
+      return {
+        ok: false,
+        code: "REVIEW",
+        message: "Review unresolved update",
+        state: current,
+      };
+    }
   }
 
   if (current.automationSuspended && trigger !== "manual") {
@@ -2042,13 +2046,23 @@ const classifyFailure = ({ mutationStarted = false, uploadDispatched = false, re
   return { status: "unverified", errorCode: "UNCERTAIN", message: "Profile update needs attention" };
 };
 
+const resumeNameIn = (text, filename) => {
+  if (!filename || !text) return "";
+  const ext = (String(filename).match(/\.[A-Za-z0-9]+$/) || [".pdf"])[0];
+  const stem = String(filename).slice(0, -ext.length).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const found = new RegExp(`${stem}(?:-\\d+)?\\${ext}`, "i").exec(String(text));
+  return found ? found[0] : "";
+};
+
 const judgeUpload = ({ before = {}, after = {}, filename } = {}) => {
   const fresh =
     after.freshSignal === true &&
     after.signalId &&
     after.signalId !== before.signalId;
-  const nameOk = !!filename && after.visibleName === filename;
-  const nameChanged = nameOk && before.visibleName !== filename;
+  const beforeName = before.visibleName || resumeNameIn(before.pageText, filename);
+  const afterName = after.visibleName || resumeNameIn(after.pageText, filename);
+  const nameOk = !!afterName && !!resumeNameIn(afterName, filename);
+  const nameChanged = nameOk && beforeName.toLowerCase() !== afterName.toLowerCase();
   const stampChanged =
     !!before.uploadedLine && !!after.uploadedLine && before.uploadedLine !== after.uploadedLine;
   if ((fresh && (nameOk || after.timestampChanged === true)) || nameChanged || stampChanged) {
@@ -2318,7 +2332,7 @@ const discardJournal = (state) => {
   if (state.activeRun) return { ok: false, state, message: "Cancel the active run first." };
   return {
     ok: true,
-    state: { ...state, pendingJournal: null, reviewRequired: false },
+    state: { ...state, pendingJournal: null, reviewRequired: false, suffixState: {} },
   };
 };
 
@@ -2483,7 +2497,10 @@ const publicState = (state, now, timeZone = systemTimeZone(), version = "1.0.0")
 
 const runNowDisabled = (state) => {
   if (state.activeRun) return { disabled: true, reason: "A run is already in progress." };
-  if (state.reviewRequired) return { disabled: true, reason: "Review unresolved update" };
+  const reviewed = state.lastResult?.status;
+  if (state.reviewRequired && reviewed !== "unverified" && reviewed !== "conflict") {
+    return { disabled: true, reason: "Review unresolved update" };
+  }
   const config = validateConfig(state, "manual", state.settings.accountConfirmed);
   if (!config.ok) return { disabled: true, reason: config.message };
   return { disabled: false, reason: "" };
@@ -2836,6 +2853,7 @@ function boot() {
         ? `${state.resumeMeta.originalName} · ${sizeLabel(state.resumeMeta.size)}`
         : "No PDF selected",
     );
+    text($("pdf-label"), state.resumeMeta ? "Change resume" : "Add resume");
     const gate = runNowDisabled(state);
     $("run-now").disabled = gate.disabled;
     text($("run-reason"), gate.reason || "");

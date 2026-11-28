@@ -2,7 +2,7 @@
 
 Personal Chrome extension. It edits a Naukri profile only in a visible tab of this Chrome profile. There is no server, account sync, telemetry, or Electron process. The desktop app and website are separate and stay as they are.
 
-Naukri's current terms and live page layout were not verified while this was built. Selectors come from the desktop runner and are treated as unverified. If a control is missing or ambiguous, the run stops. Scheduled automation stays off until you turn it on, and it stays blocked when the page does not expose a reliable account id.
+Naukri's current terms and live page layout were not verified while this was built. Selectors come from the desktop runner and are treated as unverified. If a control is missing or ambiguous, the run stops. The daily schedule starts on, and a run stays blocked when the page does not expose a reliable account id.
 
 ## 1. Requirements
 

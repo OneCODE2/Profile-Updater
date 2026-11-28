@@ -1720,12 +1720,16 @@ const prepareRun = (state, input) => {
   }
 
   if (current.reviewRequired && trigger !== "retry") {
-    return {
-      ok: false,
-      code: "REVIEW",
-      message: "Review unresolved update",
-      state: current,
-    };
+    if (trigger === "manual" && (current.lastResult?.status === "unverified" || current.lastResult?.status === "conflict")) {
+      current = { ...current, reviewRequired: false, pendingJournal: null, suffixState: {} };
+    } else {
+      return {
+        ok: false,
+        code: "REVIEW",
+        message: "Review unresolved update",
+        state: current,
+      };
+    }
   }
 
   if (current.automationSuspended && trigger !== "manual") {
@@ -2319,13 +2323,23 @@ const classifyFailure = ({ mutationStarted = false, uploadDispatched = false, re
   return { status: "unverified", errorCode: "UNCERTAIN", message: "Profile update needs attention" };
 };
 
+const resumeNameIn = (text, filename) => {
+  if (!filename || !text) return "";
+  const ext = (String(filename).match(/\.[A-Za-z0-9]+$/) || [".pdf"])[0];
+  const stem = String(filename).slice(0, -ext.length).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const found = new RegExp(`${stem}(?:-\\d+)?\\${ext}`, "i").exec(String(text));
+  return found ? found[0] : "";
+};
+
 const judgeUpload = ({ before = {}, after = {}, filename } = {}) => {
   const fresh =
     after.freshSignal === true &&
     after.signalId &&
     after.signalId !== before.signalId;
-  const nameOk = !!filename && after.visibleName === filename;
-  const nameChanged = nameOk && before.visibleName !== filename;
+  const beforeName = before.visibleName || resumeNameIn(before.pageText, filename);
+  const afterName = after.visibleName || resumeNameIn(after.pageText, filename);
+  const nameOk = !!afterName && !!resumeNameIn(afterName, filename);
+  const nameChanged = nameOk && beforeName.toLowerCase() !== afterName.toLowerCase();
   const stampChanged =
     !!before.uploadedLine && !!after.uploadedLine && before.uploadedLine !== after.uploadedLine;
   if ((fresh && (nameOk || after.timestampChanged === true)) || nameChanged || stampChanged) {
@@ -2595,7 +2609,7 @@ const discardJournal = (state) => {
   if (state.activeRun) return { ok: false, state, message: "Cancel the active run first." };
   return {
     ok: true,
-    state: { ...state, pendingJournal: null, reviewRequired: false },
+    state: { ...state, pendingJournal: null, reviewRequired: false, suffixState: {} },
   };
 };
 
@@ -2760,7 +2774,10 @@ const publicState = (state, now, timeZone = systemTimeZone(), version = "1.0.0")
 
 const runNowDisabled = (state) => {
   if (state.activeRun) return { disabled: true, reason: "A run is already in progress." };
-  if (state.reviewRequired) return { disabled: true, reason: "Review unresolved update" };
+  const reviewed = state.lastResult?.status;
+  if (state.reviewRequired && reviewed !== "unverified" && reviewed !== "conflict") {
+    return { disabled: true, reason: "Review unresolved update" };
+  }
   const config = validateConfig(state, "manual", state.settings.accountConfirmed);
   if (!config.ok) return { disabled: true, reason: config.message };
   return { disabled: false, reason: "" };
@@ -3042,6 +3059,13 @@ const waitForField = async (doc, selectors) => {
   return { ok: false, message: "Profile layout could not be verified." };
 };
 
+const closeEditor = (doc) => {
+  const cancel = [...(doc.querySelectorAll?.("button, a, span") || [])].find(
+    (el) => isVisible(el) && /^cancel$/i.test(textOf(el)),
+  );
+  if (cancel && typeof cancel.click === "function") cancel.click();
+};
+
 async function textStep(doc, { step, state, run, hooks }) {
   const label = step === "summary" ? "Profile summary" : "Resume headline";
   scrollToHeading(doc, label);
@@ -3053,17 +3077,21 @@ async function textStep(doc, { step, state, run, hooks }) {
     return { ok: true, stepStatus: "no_change", missing: true, state: noted?.state || state };
   }
   if (typeof edit.el.click === "function") edit.el.click();
+  const stop = (result) => {
+    closeEditor(doc);
+    return result;
+  };
   const fieldHit = await waitForField(doc, sels.field);
   if (!fieldHit.ok) {
-    return fail(fieldHit.code || "SELECTOR", fieldHit.message, fieldHit.code === "CANCELLED" ? { status: "cancelled" } : {});
+    return stop(fail(fieldHit.code || "SELECTOR", fieldHit.message, fieldHit.code === "CANCELLED" ? { status: "cancelled" } : {}));
   }
   const field = fieldHit.el;
   const maxLen = Number(field.getAttribute?.("maxlength")) || undefined;
   const current = normField(field.value);
   const plan = fieldPlanFor(state, step, current, maxLen);
-  if (plan.status === "invalid") return fail("CUSTOM_EMPTY", plan.message, { status: "blocked" });
+  if (plan.status === "invalid") return stop(fail("CUSTOM_EMPTY", plan.message, { status: "blocked" }));
   if (plan.status === "conflict") {
-    return fail("CONFLICT", plan.message, { status: "conflict" });
+    return stop(fail("CONFLICT", plan.message, { status: "conflict" }));
   }
   const intent = await hooks.intent({
     step,
@@ -3082,6 +3110,7 @@ async function textStep(doc, { step, state, run, hooks }) {
       status: "no_change",
       suffix: plan.ownedSuffix,
     });
+    closeEditor(doc);
     return { ok: true, stepStatus: "no_change", state: noted?.state || nextState };
   }
   setNativeValue(field, plan.next);
@@ -3113,6 +3142,7 @@ const uploadView = (doc, filename) => {
   return {
     signalId: doc.querySelector?.("[data-upload-signal]")?.getAttribute?.("data-upload-signal") || "",
     visibleName: labeled || (filename && text.includes(filename) ? filename : ""),
+    pageText: text,
     uploadedLine: (/Uploaded on\s*:?\s*[A-Za-z]{3,9}\s+\d{1,2},?\s+\d{4}/i.exec(text) || [""])[0],
     freshSignal: doc.uploadFresh === true,
     timestampChanged: doc.uploadTimestampChanged === true,
@@ -3138,7 +3168,12 @@ async function uploadStep(doc, { run, state, hooks, results }) {
   const file = await hooks.resumeFile();
   if (!file?.ok) return fail("NO_PDF", "Saved resume is unavailable. Please select it again.", { status: "blocked" });
   if (typeof hooks.assignFile === "function") hooks.assignFile(input.el, file.file);
-  const confirm = findUploadConfirm(doc);
+  let confirm = findUploadConfirm(doc);
+  const confirmUntil = Date.now() + 5000;
+  while (confirm.ok && !confirm.el && !stopRequested && Date.now() < confirmUntil) {
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    confirm = findUploadConfirm(doc);
+  }
   if (!confirm.ok) return fail("SELECTOR", confirm.message);
   if (confirm.el) confirm.el.click();
   if (typeof doc.afterUpload === "function") doc.afterUpload();

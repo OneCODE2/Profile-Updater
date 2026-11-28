@@ -87,6 +87,6 @@ npm test
 npm run build:extension
 ```
 
-Load the unpacked folder `dist/extension/` in Chrome 148 or newer. The schedule stays off until you enable it. Scheduled runs stay blocked when this Chrome profile cannot show a reliable Naukri account id. Naukri's live page and terms were not verified in this repo; the extension fails closed instead of guessing.
+Load the unpacked folder `dist/extension/` in Chrome 148 or newer. The daily schedule starts on. Scheduled runs stay blocked when this Chrome profile cannot show a reliable Naukri account id. Naukri's live page and terms were not verified in this repo; the extension fails closed instead of guessing.
 
 Do not load the extension from a folder that contains a real resume. Rebuilding in place and clicking Reload keeps the extension id. Uninstalling or moving the folder can drop local settings and the saved PDF copy.

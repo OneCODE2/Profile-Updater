@@ -128,6 +128,7 @@ function boot() {
         ? `${state.resumeMeta.originalName} · ${sizeLabel(state.resumeMeta.size)}`
         : "No PDF selected",
     );
+    text($("pdf-label"), state.resumeMeta ? "Change resume" : "Add resume");
     const gate = runNowDisabled(state);
     $("run-now").disabled = gate.disabled;
     text($("run-reason"), gate.reason || "");

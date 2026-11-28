@@ -57,6 +57,10 @@ describe("uploadedToday", () => {
     assert.equal(uploadedToday("Uploaded on Aug 12, 2026", now), true);
     assert.equal(uploadedToday("Uploaded on Aug 09, 2026", now), false);
     assert.equal(uploadedToday("Uploaded on: August 12, 2026", now), true);
+    assert.equal(uploadedToday("Uploaded on 12 Aug 2026", now), true);
+    assert.equal(uploadedToday("Uploaded on 12-08-2026", now), true);
+    assert.equal(uploadedToday("Uploaded on today", now), true);
+    assert.equal(uploadedToday("Uploaded on 09-08-2026", now), false);
   });
 
   it("ignores other today dates on the page", () => {

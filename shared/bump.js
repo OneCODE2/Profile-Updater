@@ -69,18 +69,48 @@ const applyBump = (current, { mode = "dot", customText = "" } = {}, maxLen) => {
   return { next, changeMsg };
 };
 
+const MONTH_INDEX = {
+  jan: 0, january: 0, feb: 1, february: 1, mar: 2, march: 2,
+  apr: 3, april: 3, may: 4, jun: 5, june: 5, jul: 6, july: 6,
+  aug: 7, august: 7, sep: 8, sept: 8, september: 8, oct: 9, october: 9,
+  nov: 10, november: 10, dec: 11, december: 11,
+};
+
 /**
  * True when the profile's resume was uploaded today.
  * Parses the date that directly follows "Uploaded on".
+ * Naukri shows "28 Nov 2026" and "28-11-2026" as well as "Nov 28, 2026".
  */
 const uploadedToday = (text, now = new Date()) => {
-  const m =
-    /Uploaded on\s*:?\s*([A-Za-z]{3,9})\s+0?(\d{1,2}),?\s+(\d{4})/i.exec(
-      String(text),
-    );
-  if (!m) return false;
-  const d = new Date(`${m[1]} ${m[2]}, ${m[3]}`);
-  return !isNaN(d) && d.toDateString() === now.toDateString();
+  const marker = /Uploaded on\s*:?\s*([^\n]{0,40})/i.exec(String(text));
+  if (!marker) return false;
+  const rest = marker[1].trim();
+  if (/^today\b/i.test(rest)) return true;
+  const mdy = /^([A-Za-z]{3,9})\s+0?(\d{1,2}),?\s+(\d{4})/.exec(rest);
+  const dmy = /^0?(\d{1,2})\s+([A-Za-z]{3,9}),?\s+(\d{4})/.exec(rest);
+  const num = /^0?(\d{1,2})[/\-.]0?(\d{1,2})[/\-.](\d{4})/.exec(rest);
+  let year;
+  let month;
+  let day;
+  if (mdy) {
+    month = MONTH_INDEX[mdy[1].toLowerCase()];
+    day = Number(mdy[2]);
+    year = Number(mdy[3]);
+  } else if (dmy) {
+    day = Number(dmy[1]);
+    month = MONTH_INDEX[dmy[2].toLowerCase()];
+    year = Number(dmy[3]);
+  } else if (num) {
+    day = Number(num[1]);
+    month = Number(num[2]) - 1;
+    year = Number(num[3]);
+  } else {
+    return false;
+  }
+  if (month == null || month < 0 || month > 11) return false;
+  const d = new Date(year, month, day);
+  return d.getFullYear() === year && d.getMonth() === month && d.getDate() === day
+    && d.toDateString() === now.toDateString();
 };
 
 const normField = (value) =>

@@ -4,7 +4,7 @@ const { planFieldUpdate, journalDecision } = require("../shared/bump");
 const { El, documentFrom } = require("./mini-dom");
 const { waitForProfile } = require("../extension/src/dom");
 const { runSteps } = require("../extension/src/runner");
-const { judgeUpload, classifyFailure, runNowDisabled } = require("../extension/src/engine");
+const { judgeUpload, classifyFailure, runNowDisabled, resumeCurrentToday, uploadAccepted } = require("../extension/src/engine");
 const {
   defaultState,
   prepareRun,
@@ -177,6 +177,27 @@ describe("extension recovery", () => {
     assert.equal(outcome.status, "conflict");
     assert.equal(cancel.clicked, 1);
     assert.equal(headlineField.value, "Full stack");
+  });
+
+  it("R03d a javascript profile link is clicked without opening that URL", async () => {
+    const { doc } = profile();
+    const head = doc.body.querySelector("#lazyResumeHead");
+    head.children = head.children.filter((el) => el.className !== "edit icon");
+    const link = new El("a", { href: "javascript:void(0)" });
+    const icon = new El("span", { class: "edit icon" });
+    link.append(icon);
+    head.append(link);
+    const state = {
+      current: prepareRun(ready(), { trigger: "manual", now: at(2026, 11, 28, 10, 0), timeZone: zone }).state,
+    };
+    await runSteps(doc, {
+      state: state.current,
+      run: state.current.activeRun,
+      url: "https://www.naukri.com/mnjuser/profile",
+      hooks: bind(state),
+    });
+    assert.equal(icon.clicked, 1);
+    assert.equal(link.getAttribute("href"), "javascript:void(0)");
   });
 
   it("R04 a word-count error stops before save and later steps", async () => {
@@ -434,6 +455,53 @@ describe("extension recovery", () => {
       text: "Uploaded on Nov 28, 2026",
     };
     assert.equal(judgeUpload({ before, after, filename: before.visibleName }).status, "unverified");
+  });
+
+  it("R17b a second same-day upload still runs and is accepted like the desktop app", async () => {
+    const filename = "Ada_Lovelace_Dev_Resume_28-11-2026.pdf";
+    const when = at(2026, 11, 28, 19, 40);
+    assert.equal(
+      resumeCurrentToday({ pageText: `${filename} Uploaded on Nov 28, 2026` }, filename, when),
+      true,
+    );
+    assert.equal(
+      uploadAccepted({
+        before: { pageText: `${filename} Uploaded on Nov 28, 2026`, uploadedLine: "Uploaded on Nov 28, 2026" },
+        after: { pageText: `${filename} Uploaded on Nov 28, 2026`, uploadedLine: "Uploaded on Nov 28, 2026" },
+        filename,
+        now: when,
+      }),
+      true,
+    );
+    const body = new El("body", {}, [
+      new El("span", { text: `${filename} Uploaded on 28 Nov 2026` }),
+      new El("input", { id: "attachCV", type: "file" }),
+    ]);
+    const base = ready();
+    base.settings.actions = { headline: false, summary: false, resume: true };
+    base.settings.firstName = "Ada";
+    base.settings.lastName = "Lovelace";
+    base.settings.role = "Dev";
+    base.resumeMeta = { originalName: "a.pdf", size: 10, revision: 1, mime: "application/pdf" };
+    const prepared = prepareRun(base, { trigger: "manual", now: when, timeZone: zone });
+    assert.equal(prepared.ok, true);
+    prepared.state.activeRun.filename = filename;
+    prepared.state.activeRun.frozenAt = when.toISOString();
+    let assigned = false;
+    const holder = { current: prepared.state };
+    const hooks = bind(holder);
+    hooks.assignFile = () => {
+      assigned = true;
+    };
+    const outcome = await runSteps(documentFrom(body), {
+      state: holder.current,
+      run: holder.current.activeRun,
+      url: "https://www.naukri.com/mnjuser/profile",
+      hooks,
+    });
+    assert.equal(outcome.status, "success");
+    assert.equal(outcome.results.resume, "verified");
+    assert.equal(assigned, true);
   });
 
   it("R18 a dispatched upload with no fresh result stays unverified", () => {

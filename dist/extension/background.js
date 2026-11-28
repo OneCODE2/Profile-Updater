@@ -76,18 +76,48 @@ const applyBump = (current, { mode = "dot", customText = "" } = {}, maxLen) => {
   return { next, changeMsg };
 };
 
+const MONTH_INDEX = {
+  jan: 0, january: 0, feb: 1, february: 1, mar: 2, march: 2,
+  apr: 3, april: 3, may: 4, jun: 5, june: 5, jul: 6, july: 6,
+  aug: 7, august: 7, sep: 8, sept: 8, september: 8, oct: 9, october: 9,
+  nov: 10, november: 10, dec: 11, december: 11,
+};
+
 /**
  * True when the profile's resume was uploaded today.
  * Parses the date that directly follows "Uploaded on".
+ * Naukri shows "28 Nov 2026" and "28-11-2026" as well as "Nov 28, 2026".
  */
 const uploadedToday = (text, now = new Date()) => {
-  const m =
-    /Uploaded on\s*:?\s*([A-Za-z]{3,9})\s+0?(\d{1,2}),?\s+(\d{4})/i.exec(
-      String(text),
-    );
-  if (!m) return false;
-  const d = new Date(`${m[1]} ${m[2]}, ${m[3]}`);
-  return !isNaN(d) && d.toDateString() === now.toDateString();
+  const marker = /Uploaded on\s*:?\s*([^\n]{0,40})/i.exec(String(text));
+  if (!marker) return false;
+  const rest = marker[1].trim();
+  if (/^today\b/i.test(rest)) return true;
+  const mdy = /^([A-Za-z]{3,9})\s+0?(\d{1,2}),?\s+(\d{4})/.exec(rest);
+  const dmy = /^0?(\d{1,2})\s+([A-Za-z]{3,9}),?\s+(\d{4})/.exec(rest);
+  const num = /^0?(\d{1,2})[/\-.]0?(\d{1,2})[/\-.](\d{4})/.exec(rest);
+  let year;
+  let month;
+  let day;
+  if (mdy) {
+    month = MONTH_INDEX[mdy[1].toLowerCase()];
+    day = Number(mdy[2]);
+    year = Number(mdy[3]);
+  } else if (dmy) {
+    day = Number(dmy[1]);
+    month = MONTH_INDEX[dmy[2].toLowerCase()];
+    year = Number(dmy[3]);
+  } else if (num) {
+    day = Number(num[1]);
+    month = Number(num[2]) - 1;
+    year = Number(num[3]);
+  } else {
+    return false;
+  }
+  if (month == null || month < 0 || month > 11) return false;
+  const d = new Date(year, month, day);
+  return d.getFullYear() === year && d.getMonth() === month && d.getDate() === day
+    && d.toDateString() === now.toDateString();
 };
 
 const normField = (value) =>
@@ -1078,7 +1108,7 @@ __m["extension/src/engine.js"]= {fn:function(module,exports,require){
  * so recovery, scheduling, and storage rules can be tested without Chrome.
  */
 
-const { emptyCustomMessage, planFieldUpdate } = __req("shared/bump.js");
+const { emptyCustomMessage, planFieldUpdate, uploadedToday } = __req("shared/bump.js");
 const { describeIdentity } = __req("shared/filename.js");
 const { parseCustomSlots, normalizeSlot } = __req("shared/slots.js");
 const {
@@ -1443,8 +1473,14 @@ const prepareRun = (state, input) => {
   }
 
   if (current.reviewRequired && trigger !== "retry") {
-    if (trigger === "manual" && (current.lastResult?.status === "unverified" || current.lastResult?.status === "conflict")) {
-      current = { ...current, reviewRequired: false, pendingJournal: null, suffixState: {} };
+    const prior = current.lastResult?.status;
+    if (prior === "unverified" || (trigger === "manual" && prior === "conflict")) {
+      current = {
+        ...current,
+        reviewRequired: false,
+        pendingJournal: null,
+        suffixState: prior === "conflict" ? {} : current.suffixState,
+      };
     } else {
       return {
         ok: false,
@@ -2071,6 +2107,23 @@ const judgeUpload = ({ before = {}, after = {}, filename } = {}) => {
   return { status: "unverified", message: "cv upload did not stick" };
 };
 
+/** True when the profile already shows a resume dated today (used only as a soft signal). */
+const resumeCurrentToday = (view = {}, _filename, now = new Date()) => {
+  const text = `${view.visibleName || ""}\n${view.uploadedLine || ""}\n${view.pageText || ""}`;
+  return uploadedToday(text, now);
+};
+
+/**
+ * After a real file dispatch, accept the same evidence the desktop runner uses:
+ * the expected name is on the page, or Uploaded-on is today.
+ * judgeUpload stays strict for pre-dispatch compares (R17).
+ */
+const uploadAccepted = ({ before = {}, after = {}, filename, now = new Date() } = {}) => {
+  if (judgeUpload({ before, after, filename }).status === "verified") return true;
+  const text = `${after.visibleName || ""}\n${after.uploadedLine || ""}\n${after.pageText || ""}`;
+  return !!resumeNameIn(text, filename) || uploadedToday(text, now);
+};
+
 const commitSettings = (state, patch, baseRevision, now, timeZone = systemTimeZone()) => {
   if (baseRevision !== state.settings.revision) {
     return {
@@ -2616,6 +2669,8 @@ module.exports = {
   releaseResume,
   classifyFailure,
   judgeUpload,
+  resumeCurrentToday,
+  uploadAccepted,
   commitSettings,
   pauseToday,
   resumeToday,
@@ -3295,6 +3350,7 @@ function createApp(platform) {
       await platform.tabs.sendMessage(opened.tab.id, {
         type: "BIND_RUN",
         runId: state.activeRun.runId,
+        frozenAt: state.activeRun.frozenAt || null,
         steps: state.activeRun.steps.map((step) => stepPayload(state, step)),
       });
     }

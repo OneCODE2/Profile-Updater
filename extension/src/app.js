@@ -209,6 +209,7 @@ function createApp(platform) {
       await platform.tabs.sendMessage(opened.tab.id, {
         type: "BIND_RUN",
         runId: state.activeRun.runId,
+        frozenAt: state.activeRun.frozenAt || null,
         steps: state.activeRun.steps.map((step) => stepPayload(state, step)),
       });
     }

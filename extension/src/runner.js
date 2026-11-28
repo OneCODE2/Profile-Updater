@@ -1,7 +1,7 @@
 /** Bounded DOM steps. Stops on the first failed or uncertain step. No unofficial endpoints. */
 
 const { normField } = require("../../shared/bump");
-const { fieldPlanFor, judgeUpload } = require("./engine");
+const { fieldPlanFor, uploadAccepted } = require("./engine");
 const {
   SELECTORS,
   queryUnique,
@@ -100,12 +100,14 @@ async function runSteps(doc, { state, run, url, hooks }) {
     results[step] = edited.missing ? "missing" : edited.stepStatus;
     currentState = edited.state || currentState;
   }
+  const textSteps = run.steps.filter((step) => step !== "resume");
+  const textMissing =
+    textSteps.length > 0 && textSteps.every((step) => results[step] === "missing");
   const present = Object.values(results).filter((status) => status !== "missing");
-  if (!present.length) {
+  const mutated = present.includes("verified");
+  if (!present.length || (textMissing && !mutated)) {
     return fail("SELECTOR", "Profile layout could not be verified.", { results, state: currentState });
   }
-  const statuses = present;
-  const mutated = statuses.includes("verified");
   const status = mutated ? "success" : "no_changes";
   return {
     ok: true,
@@ -132,24 +134,57 @@ const waitForField = async (doc, selectors) => {
   return { ok: false, message: "Profile layout could not be verified." };
 };
 
+const activate = (el) => {
+  if (!el || typeof el.click !== "function") return;
+  let link = el;
+  while (link && !/^\s*javascript:/i.test(link.getAttribute?.("href") || "")) {
+    link = link.parentElement;
+  }
+  const href = link?.getAttribute?.("href");
+  if (href && /^\s*javascript:/i.test(href)) link.setAttribute("href", "#");
+  try {
+    el.click();
+  } finally {
+    if (href != null && link) link.setAttribute("href", href);
+  }
+};
+
+/** Desktop opens the section tab before the edit pencil appears. */
+const openSection = (doc, name) => {
+  scrollToHeading(doc, name);
+  if (!doc?.querySelectorAll || !name) return;
+  const pattern = new RegExp(`^${name}$`, "i");
+  for (const node of doc.querySelectorAll(".collection-item, a, span, button, div, li")) {
+    const label = textOf(node);
+    if (!pattern.test(label) || label.length > 40 || !isVisible(node)) continue;
+    activate(node);
+    return;
+  }
+};
+
 const closeEditor = (doc) => {
   const cancel = [...(doc.querySelectorAll?.("button, a, span") || [])].find(
     (el) => isVisible(el) && /^cancel$/i.test(textOf(el)),
   );
-  if (cancel && typeof cancel.click === "function") cancel.click();
+  activate(cancel);
 };
 
 async function textStep(doc, { step, state, run, hooks }) {
   const label = step === "summary" ? "Profile summary" : "Resume headline";
-  scrollToHeading(doc, label);
+  openSection(doc, label);
   const sels = fieldSelectors[step];
-  const located = queryUnique(doc, sels.edit);
-  const edit = located.ok ? located : findLabeledEdit(doc, label);
+  let located = queryUnique(doc, sels.edit);
+  let edit = located.ok ? located : findLabeledEdit(doc, label);
+  if (!edit.ok) {
+    await new Promise((resolve) => setTimeout(resolve, 400));
+    located = queryUnique(doc, sels.edit);
+    edit = located.ok ? located : findLabeledEdit(doc, label);
+  }
   if (!edit.ok) {
     const noted = await hooks.stepResult({ step, status: "no_change" });
     return { ok: true, stepStatus: "no_change", missing: true, state: noted?.state || state };
   }
-  if (typeof edit.el.click === "function") edit.el.click();
+  activate(edit.el);
   const stop = (result) => {
     closeEditor(doc);
     return result;
@@ -196,7 +231,7 @@ async function textStep(doc, { step, state, run, hooks }) {
   }
   const save = findScopedSave(scope);
   if (!save.ok) return fail("SELECTOR", save.message);
-  save.el.click();
+  activate(save.el);
   if (typeof doc.afterSave === "function") doc.afterSave(field, step);
   if (normField(field.value) !== normField(plan.next)) {
     return fail("SAVE_MISMATCH", "field did not save", { status: "failed", stepFailed: step });
@@ -216,16 +251,22 @@ const uploadView = (doc, filename) => {
     signalId: doc.querySelector?.("[data-upload-signal]")?.getAttribute?.("data-upload-signal") || "",
     visibleName: labeled || (filename && text.includes(filename) ? filename : ""),
     pageText: text,
-    uploadedLine: (/Uploaded on\s*:?\s*[A-Za-z]{3,9}\s+\d{1,2},?\s+\d{4}/i.exec(text) || [""])[0],
+    uploadedLine: (/Uploaded on\s*:?\s*(?:today\b|[A-Za-z]{3,9}\s+\d{1,2},?\s+\d{4}|\d{1,2}\s+[A-Za-z]{3,9},?\s+\d{4}|\d{1,2}[/\-.]\d{1,2}[/\-.]\d{4})/i.exec(text) || [""])[0],
     freshSignal: doc.uploadFresh === true,
     timestampChanged: doc.uploadTimestampChanged === true,
   };
 };
 
 async function uploadStep(doc, { run, state, hooks, results }) {
-  const input = findResumeInput(doc);
-  if (!input.ok) return fail("SELECTOR", input.message);
+  openSection(doc, "Resume");
   const before = uploadView(doc, run.filename);
+  const asOf = run.frozenAt ? new Date(run.frozenAt) : new Date();
+  let input = findResumeInput(doc);
+  if (!input.ok) {
+    await new Promise((resolve) => setTimeout(resolve, 400));
+    input = findResumeInput(doc);
+  }
+  if (!input.ok) return fail("SELECTOR", input.message);
   const intent = await hooks.intent({ step: "resume", before: before.visibleName, target: run.filename, upload: true });
   if (!intent?.ok) {
     return fail(intent?.code || "AUTH", intent?.message || "Run interrupted", {
@@ -248,11 +289,15 @@ async function uploadStep(doc, { run, state, hooks, results }) {
     confirm = findUploadConfirm(doc);
   }
   if (!confirm.ok) return fail("SELECTOR", confirm.message);
-  if (confirm.el) confirm.el.click();
+  activate(confirm.el);
   if (typeof doc.afterUpload === "function") doc.afterUpload();
   let after = uploadView(doc, run.filename);
   const deadline = Date.now() + 20000;
-  while (!stopRequested && judgeUpload({ before, after, filename: run.filename }).status !== "verified" && Date.now() < deadline) {
+  while (
+    !stopRequested &&
+    !uploadAccepted({ before, after, filename: run.filename, now: asOf }) &&
+    Date.now() < deadline
+  ) {
     await new Promise((resolve) => setTimeout(resolve, 400));
     after = uploadView(doc, run.filename);
   }
@@ -262,8 +307,7 @@ async function uploadStep(doc, { run, state, hooks, results }) {
       state: dispatched.state,
     });
   }
-  const judged = judgeUpload({ before, after, filename: run.filename });
-  if (judged.status !== "verified") {
+  if (!uploadAccepted({ before, after, filename: run.filename, now: asOf })) {
     return fail("UPLOAD_UNVERIFIED", "cv upload did not stick", {
       status: "unverified",
       state: dispatched.state,

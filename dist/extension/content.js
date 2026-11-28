@@ -353,18 +353,48 @@ const applyBump = (current, { mode = "dot", customText = "" } = {}, maxLen) => {
   return { next, changeMsg };
 };
 
+const MONTH_INDEX = {
+  jan: 0, january: 0, feb: 1, february: 1, mar: 2, march: 2,
+  apr: 3, april: 3, may: 4, jun: 5, june: 5, jul: 6, july: 6,
+  aug: 7, august: 7, sep: 8, sept: 8, september: 8, oct: 9, october: 9,
+  nov: 10, november: 10, dec: 11, december: 11,
+};
+
 /**
  * True when the profile's resume was uploaded today.
  * Parses the date that directly follows "Uploaded on".
+ * Naukri shows "28 Nov 2026" and "28-11-2026" as well as "Nov 28, 2026".
  */
 const uploadedToday = (text, now = new Date()) => {
-  const m =
-    /Uploaded on\s*:?\s*([A-Za-z]{3,9})\s+0?(\d{1,2}),?\s+(\d{4})/i.exec(
-      String(text),
-    );
-  if (!m) return false;
-  const d = new Date(`${m[1]} ${m[2]}, ${m[3]}`);
-  return !isNaN(d) && d.toDateString() === now.toDateString();
+  const marker = /Uploaded on\s*:?\s*([^\n]{0,40})/i.exec(String(text));
+  if (!marker) return false;
+  const rest = marker[1].trim();
+  if (/^today\b/i.test(rest)) return true;
+  const mdy = /^([A-Za-z]{3,9})\s+0?(\d{1,2}),?\s+(\d{4})/.exec(rest);
+  const dmy = /^0?(\d{1,2})\s+([A-Za-z]{3,9}),?\s+(\d{4})/.exec(rest);
+  const num = /^0?(\d{1,2})[/\-.]0?(\d{1,2})[/\-.](\d{4})/.exec(rest);
+  let year;
+  let month;
+  let day;
+  if (mdy) {
+    month = MONTH_INDEX[mdy[1].toLowerCase()];
+    day = Number(mdy[2]);
+    year = Number(mdy[3]);
+  } else if (dmy) {
+    day = Number(dmy[1]);
+    month = MONTH_INDEX[dmy[2].toLowerCase()];
+    year = Number(dmy[3]);
+  } else if (num) {
+    day = Number(num[1]);
+    month = Number(num[2]) - 1;
+    year = Number(num[3]);
+  } else {
+    return false;
+  }
+  if (month == null || month < 0 || month > 11) return false;
+  const d = new Date(year, month, day);
+  return d.getFullYear() === year && d.getMonth() === month && d.getDate() === day
+    && d.toDateString() === now.toDateString();
 };
 
 const normField = (value) =>
@@ -1355,7 +1385,7 @@ __m["extension/src/engine.js"]= {fn:function(module,exports,require){
  * so recovery, scheduling, and storage rules can be tested without Chrome.
  */
 
-const { emptyCustomMessage, planFieldUpdate } = __req("shared/bump.js");
+const { emptyCustomMessage, planFieldUpdate, uploadedToday } = __req("shared/bump.js");
 const { describeIdentity } = __req("shared/filename.js");
 const { parseCustomSlots, normalizeSlot } = __req("shared/slots.js");
 const {
@@ -1720,8 +1750,14 @@ const prepareRun = (state, input) => {
   }
 
   if (current.reviewRequired && trigger !== "retry") {
-    if (trigger === "manual" && (current.lastResult?.status === "unverified" || current.lastResult?.status === "conflict")) {
-      current = { ...current, reviewRequired: false, pendingJournal: null, suffixState: {} };
+    const prior = current.lastResult?.status;
+    if (prior === "unverified" || (trigger === "manual" && prior === "conflict")) {
+      current = {
+        ...current,
+        reviewRequired: false,
+        pendingJournal: null,
+        suffixState: prior === "conflict" ? {} : current.suffixState,
+      };
     } else {
       return {
         ok: false,
@@ -2348,6 +2384,23 @@ const judgeUpload = ({ before = {}, after = {}, filename } = {}) => {
   return { status: "unverified", message: "cv upload did not stick" };
 };
 
+/** True when the profile already shows a resume dated today (used only as a soft signal). */
+const resumeCurrentToday = (view = {}, _filename, now = new Date()) => {
+  const text = `${view.visibleName || ""}\n${view.uploadedLine || ""}\n${view.pageText || ""}`;
+  return uploadedToday(text, now);
+};
+
+/**
+ * After a real file dispatch, accept the same evidence the desktop runner uses:
+ * the expected name is on the page, or Uploaded-on is today.
+ * judgeUpload stays strict for pre-dispatch compares (R17).
+ */
+const uploadAccepted = ({ before = {}, after = {}, filename, now = new Date() } = {}) => {
+  if (judgeUpload({ before, after, filename }).status === "verified") return true;
+  const text = `${after.visibleName || ""}\n${after.uploadedLine || ""}\n${after.pageText || ""}`;
+  return !!resumeNameIn(text, filename) || uploadedToday(text, now);
+};
+
 const commitSettings = (state, patch, baseRevision, now, timeZone = systemTimeZone()) => {
   if (baseRevision !== state.settings.revision) {
     return {
@@ -2893,6 +2946,8 @@ module.exports = {
   releaseResume,
   classifyFailure,
   judgeUpload,
+  resumeCurrentToday,
+  uploadAccepted,
   commitSettings,
   pauseToday,
   resumeToday,
@@ -2928,7 +2983,7 @@ __m["extension/src/runner.js"]= {fn:function(module,exports,require){
 /** Bounded DOM steps. Stops on the first failed or uncertain step. No unofficial endpoints. */
 
 const { normField } = __req("shared/bump.js");
-const { fieldPlanFor, judgeUpload } = __req("extension/src/engine.js");
+const { fieldPlanFor, uploadAccepted } = __req("extension/src/engine.js");
 const {
   SELECTORS,
   queryUnique,
@@ -3027,12 +3082,14 @@ async function runSteps(doc, { state, run, url, hooks }) {
     results[step] = edited.missing ? "missing" : edited.stepStatus;
     currentState = edited.state || currentState;
   }
+  const textSteps = run.steps.filter((step) => step !== "resume");
+  const textMissing =
+    textSteps.length > 0 && textSteps.every((step) => results[step] === "missing");
   const present = Object.values(results).filter((status) => status !== "missing");
-  if (!present.length) {
+  const mutated = present.includes("verified");
+  if (!present.length || (textMissing && !mutated)) {
     return fail("SELECTOR", "Profile layout could not be verified.", { results, state: currentState });
   }
-  const statuses = present;
-  const mutated = statuses.includes("verified");
   const status = mutated ? "success" : "no_changes";
   return {
     ok: true,
@@ -3059,24 +3116,57 @@ const waitForField = async (doc, selectors) => {
   return { ok: false, message: "Profile layout could not be verified." };
 };
 
+const activate = (el) => {
+  if (!el || typeof el.click !== "function") return;
+  let link = el;
+  while (link && !/^\s*javascript:/i.test(link.getAttribute?.("href") || "")) {
+    link = link.parentElement;
+  }
+  const href = link?.getAttribute?.("href");
+  if (href && /^\s*javascript:/i.test(href)) link.setAttribute("href", "#");
+  try {
+    el.click();
+  } finally {
+    if (href != null && link) link.setAttribute("href", href);
+  }
+};
+
+/** Desktop opens the section tab before the edit pencil appears. */
+const openSection = (doc, name) => {
+  scrollToHeading(doc, name);
+  if (!doc?.querySelectorAll || !name) return;
+  const pattern = new RegExp(`^${name}$`, "i");
+  for (const node of doc.querySelectorAll(".collection-item, a, span, button, div, li")) {
+    const label = textOf(node);
+    if (!pattern.test(label) || label.length > 40 || !isVisible(node)) continue;
+    activate(node);
+    return;
+  }
+};
+
 const closeEditor = (doc) => {
   const cancel = [...(doc.querySelectorAll?.("button, a, span") || [])].find(
     (el) => isVisible(el) && /^cancel$/i.test(textOf(el)),
   );
-  if (cancel && typeof cancel.click === "function") cancel.click();
+  activate(cancel);
 };
 
 async function textStep(doc, { step, state, run, hooks }) {
   const label = step === "summary" ? "Profile summary" : "Resume headline";
-  scrollToHeading(doc, label);
+  openSection(doc, label);
   const sels = fieldSelectors[step];
-  const located = queryUnique(doc, sels.edit);
-  const edit = located.ok ? located : findLabeledEdit(doc, label);
+  let located = queryUnique(doc, sels.edit);
+  let edit = located.ok ? located : findLabeledEdit(doc, label);
+  if (!edit.ok) {
+    await new Promise((resolve) => setTimeout(resolve, 400));
+    located = queryUnique(doc, sels.edit);
+    edit = located.ok ? located : findLabeledEdit(doc, label);
+  }
   if (!edit.ok) {
     const noted = await hooks.stepResult({ step, status: "no_change" });
     return { ok: true, stepStatus: "no_change", missing: true, state: noted?.state || state };
   }
-  if (typeof edit.el.click === "function") edit.el.click();
+  activate(edit.el);
   const stop = (result) => {
     closeEditor(doc);
     return result;
@@ -3123,7 +3213,7 @@ async function textStep(doc, { step, state, run, hooks }) {
   }
   const save = findScopedSave(scope);
   if (!save.ok) return fail("SELECTOR", save.message);
-  save.el.click();
+  activate(save.el);
   if (typeof doc.afterSave === "function") doc.afterSave(field, step);
   if (normField(field.value) !== normField(plan.next)) {
     return fail("SAVE_MISMATCH", "field did not save", { status: "failed", stepFailed: step });
@@ -3143,16 +3233,22 @@ const uploadView = (doc, filename) => {
     signalId: doc.querySelector?.("[data-upload-signal]")?.getAttribute?.("data-upload-signal") || "",
     visibleName: labeled || (filename && text.includes(filename) ? filename : ""),
     pageText: text,
-    uploadedLine: (/Uploaded on\s*:?\s*[A-Za-z]{3,9}\s+\d{1,2},?\s+\d{4}/i.exec(text) || [""])[0],
+    uploadedLine: (/Uploaded on\s*:?\s*(?:today\b|[A-Za-z]{3,9}\s+\d{1,2},?\s+\d{4}|\d{1,2}\s+[A-Za-z]{3,9},?\s+\d{4}|\d{1,2}[/\-.]\d{1,2}[/\-.]\d{4})/i.exec(text) || [""])[0],
     freshSignal: doc.uploadFresh === true,
     timestampChanged: doc.uploadTimestampChanged === true,
   };
 };
 
 async function uploadStep(doc, { run, state, hooks, results }) {
-  const input = findResumeInput(doc);
-  if (!input.ok) return fail("SELECTOR", input.message);
+  openSection(doc, "Resume");
   const before = uploadView(doc, run.filename);
+  const asOf = run.frozenAt ? new Date(run.frozenAt) : new Date();
+  let input = findResumeInput(doc);
+  if (!input.ok) {
+    await new Promise((resolve) => setTimeout(resolve, 400));
+    input = findResumeInput(doc);
+  }
+  if (!input.ok) return fail("SELECTOR", input.message);
   const intent = await hooks.intent({ step: "resume", before: before.visibleName, target: run.filename, upload: true });
   if (!intent?.ok) {
     return fail(intent?.code || "AUTH", intent?.message || "Run interrupted", {
@@ -3175,11 +3271,15 @@ async function uploadStep(doc, { run, state, hooks, results }) {
     confirm = findUploadConfirm(doc);
   }
   if (!confirm.ok) return fail("SELECTOR", confirm.message);
-  if (confirm.el) confirm.el.click();
+  activate(confirm.el);
   if (typeof doc.afterUpload === "function") doc.afterUpload();
   let after = uploadView(doc, run.filename);
   const deadline = Date.now() + 20000;
-  while (!stopRequested && judgeUpload({ before, after, filename: run.filename }).status !== "verified" && Date.now() < deadline) {
+  while (
+    !stopRequested &&
+    !uploadAccepted({ before, after, filename: run.filename, now: asOf }) &&
+    Date.now() < deadline
+  ) {
     await new Promise((resolve) => setTimeout(resolve, 400));
     after = uploadView(doc, run.filename);
   }
@@ -3189,8 +3289,7 @@ async function uploadStep(doc, { run, state, hooks, results }) {
       state: dispatched.state,
     });
   }
-  const judged = judgeUpload({ before, after, filename: run.filename });
-  if (judged.status !== "verified") {
+  if (!uploadAccepted({ before, after, filename: run.filename, now: asOf })) {
     return fail("UPLOAD_UNVERIFIED", "cv upload did not stick", {
       status: "unverified",
       state: dispatched.state,
@@ -3276,6 +3375,7 @@ async function bindRun(doc, message) {
       runId: message.runId,
       steps: steps.map((step) => step.step || step),
       filename: steps.find((step) => step.step === "resume")?.fileName || null,
+      frozenAt: message.frozenAt || null,
       cancelRequested: false,
     },
     url: doc.location?.href || "",

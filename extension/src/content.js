@@ -60,6 +60,7 @@ async function bindRun(doc, message) {
       runId: message.runId,
       steps: steps.map((step) => step.step || step),
       filename: steps.find((step) => step.step === "resume")?.fileName || null,
+      frozenAt: message.frozenAt || null,
       cancelRequested: false,
     },
     url: doc.location?.href || "",

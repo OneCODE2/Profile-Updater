@@ -3,7 +3,7 @@
  * so recovery, scheduling, and storage rules can be tested without Chrome.
  */
 
-const { emptyCustomMessage, planFieldUpdate } = require("../../shared/bump");
+const { emptyCustomMessage, planFieldUpdate, uploadedToday } = require("../../shared/bump");
 const { describeIdentity } = require("../../shared/filename");
 const { parseCustomSlots, normalizeSlot } = require("../../shared/slots");
 const {
@@ -368,8 +368,14 @@ const prepareRun = (state, input) => {
   }
 
   if (current.reviewRequired && trigger !== "retry") {
-    if (trigger === "manual" && (current.lastResult?.status === "unverified" || current.lastResult?.status === "conflict")) {
-      current = { ...current, reviewRequired: false, pendingJournal: null, suffixState: {} };
+    const prior = current.lastResult?.status;
+    if (prior === "unverified" || (trigger === "manual" && prior === "conflict")) {
+      current = {
+        ...current,
+        reviewRequired: false,
+        pendingJournal: null,
+        suffixState: prior === "conflict" ? {} : current.suffixState,
+      };
     } else {
       return {
         ok: false,
@@ -996,6 +1002,23 @@ const judgeUpload = ({ before = {}, after = {}, filename } = {}) => {
   return { status: "unverified", message: "cv upload did not stick" };
 };
 
+/** True when the profile already shows a resume dated today (used only as a soft signal). */
+const resumeCurrentToday = (view = {}, _filename, now = new Date()) => {
+  const text = `${view.visibleName || ""}\n${view.uploadedLine || ""}\n${view.pageText || ""}`;
+  return uploadedToday(text, now);
+};
+
+/**
+ * After a real file dispatch, accept the same evidence the desktop runner uses:
+ * the expected name is on the page, or Uploaded-on is today.
+ * judgeUpload stays strict for pre-dispatch compares (R17).
+ */
+const uploadAccepted = ({ before = {}, after = {}, filename, now = new Date() } = {}) => {
+  if (judgeUpload({ before, after, filename }).status === "verified") return true;
+  const text = `${after.visibleName || ""}\n${after.uploadedLine || ""}\n${after.pageText || ""}`;
+  return !!resumeNameIn(text, filename) || uploadedToday(text, now);
+};
+
 const commitSettings = (state, patch, baseRevision, now, timeZone = systemTimeZone()) => {
   if (baseRevision !== state.settings.revision) {
     return {
@@ -1541,6 +1564,8 @@ module.exports = {
   releaseResume,
   classifyFailure,
   judgeUpload,
+  resumeCurrentToday,
+  uploadAccepted,
   commitSettings,
   pauseToday,
   resumeToday,

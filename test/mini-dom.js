@@ -71,8 +71,23 @@ class El {
     this.events.push(event);
   }
 
+  addEventListener(_type, fn) {
+    (this.listeners || (this.listeners = [])).push(fn);
+  }
+
   click() {
     this.clicked += 1;
+    const event = { preventDefault() { this.defaultPrevented = true; } };
+    const chain = [];
+    let node = this;
+    while (node) {
+      chain.push(node);
+      node = node.parentElement;
+    }
+    for (let i = chain.length - 1; i >= 0; i -= 1) {
+      for (const fn of chain[i].listeners || []) fn(event);
+    }
+    this.defaultPrevented = !!event.defaultPrevented;
   }
 }
 
